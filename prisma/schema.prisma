@@ -10,6 +10,7 @@ datasource db {
 // ------------------ ENUMS ------------------
 
 enum UserStatus {
+  PENDING
   ACTIVE
   INACTIVE
   BANNED
@@ -68,7 +69,10 @@ model User {
   name             String
   email            String    @unique
   password         String
-  status           UserStatus @default(ACTIVE)
+  status           UserStatus @default(PENDING)
+  emailVerified    Boolean   @default(false)
+  verificationToken String?  @unique
+  tokenExpiry      DateTime?
   mustChangePassword Boolean @default(true)
   roleId           String
   teamId           String?

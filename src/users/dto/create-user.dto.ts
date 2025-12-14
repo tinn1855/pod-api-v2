@@ -1,5 +1,6 @@
 import { IsEmail, IsString, IsOptional, IsUUID, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmailUnique } from '../../common/validators/is-email-unique.validator';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -14,6 +15,7 @@ export class CreateUserDto {
     example: 'john.doe@example.com',
   })
   @IsEmail({}, { message: 'Invalid email format' })
+  @IsEmailUnique({ message: 'Email already exists' })
   email: string;
 
   @ApiProperty({

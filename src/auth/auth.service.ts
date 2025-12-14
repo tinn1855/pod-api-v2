@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -36,6 +37,11 @@ export class AuthService {
     // Check if user is soft deleted
     if (user.deletedAt !== null) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Check if email is verified
+    if (!user.emailVerified) {
+      throw new UnauthorizedException('Please verify your email address before logging in');
     }
 
     // Check if user is active
@@ -101,5 +107,38 @@ export class AuthService {
   async logout(): Promise<{ message: string }> {
     // Stateless logout - client will delete tokens
     return { message: 'Logged out successfully' };
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    const user = await this.prisma.user.findFirst({
+      where: { verificationToken: token },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Invalid or expired verification token');
+    }
+
+    // Check if token is expired
+    if (user.tokenExpiry && user.tokenExpiry < new Date()) {
+      throw new BadRequestException('Verification token has expired');
+    }
+
+    // Check if already verified
+    if (user.emailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    // Update user: set emailVerified = true, status = ACTIVE, clear token
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        status: UserStatus.ACTIVE,
+        verificationToken: null,
+        tokenExpiry: null,
+      },
+    });
+
+    return { message: 'Email verified successfully. You can now log in.' };
   }
 }

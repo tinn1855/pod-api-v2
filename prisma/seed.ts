@@ -157,7 +157,9 @@ async function main() {
       const permission = await prisma.permission.upsert({
         where: { name: perm.name },
         update: {},
-        create: perm,
+        create: {
+          name: perm.name,
+        },
       });
       createdPermissions.push(permission);
       console.log(`   ✓ ${perm.name} - ${perm.description}`);
@@ -175,6 +177,11 @@ async function main() {
     }
 
     const roles = [
+      {
+        name: 'Super Admin',
+        description: 'Quản trị viên cấp cao với đầy đủ quyền hệ thống',
+        permissionNames: allPermissions.map((p) => p.name), // Tất cả permissions
+      },
       {
         name: 'Admin',
         description: 'Quản trị viên hệ thống với đầy đủ quyền',
@@ -291,32 +298,38 @@ async function main() {
     console.log('✅ Đã gán permissions cho tất cả roles\n');
 
     // ============================================
-    // BƯỚC 4: Tạo Admin User
+    // BƯỚC 4: Tạo Super Admin User
     // ============================================
-    console.log('👤 Bước 4: Tạo Admin User...\n');
+    console.log('👤 Bước 4: Tạo Super Admin User...\n');
 
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@123456';
+    const adminEmail = process.env.ADMIN_EMAIL || 'superadmin@example.com';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'SuperAdmin@123456';
     const adminName = process.env.ADMIN_NAME || 'Super Admin';
 
     const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
-    const adminRole = createdRoles.find((r) => r.role.name === 'Admin')!.role;
+    const superAdminRole = createdRoles.find((r) => r.role.name === 'Super Admin')!.role;
 
     const adminUser = await prisma.user.upsert({
       where: { email: adminEmail },
       update: {
         password: hashedPassword,
         status: UserStatus.ACTIVE,
+        emailVerified: true,
+        verificationToken: null,
+        tokenExpiry: null,
         mustChangePassword: false,
-        roleId: adminRole.id,
+        roleId: superAdminRole.id,
       },
       create: {
         name: adminName,
         email: adminEmail,
         password: hashedPassword,
-        roleId: adminRole.id,
+        roleId: superAdminRole.id,
         status: UserStatus.ACTIVE,
+        emailVerified: true,
+        verificationToken: null,
+        tokenExpiry: null,
         mustChangePassword: false,
       },
     });
@@ -324,13 +337,13 @@ async function main() {
     console.log(`   ✓ Tên: ${adminUser.name}`);
     console.log(`   ✓ Email: ${adminUser.email}`);
     console.log(`   ✓ Status: ${adminUser.status}`);
-    console.log(`   ✓ Role: Admin\n`);
+    console.log(`   ✓ Role: Super Admin\n`);
 
     // ============================================
     // THÔNG TIN ĐĂNG NHẬP
     // ============================================
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📝 THÔNG TIN ĐĂNG NHẬP ADMIN:');
+    console.log('📝 THÔNG TIN ĐĂNG NHẬP SUPER ADMIN:');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`   Email:    ${adminEmail}`);
     console.log(`   Password: ${adminPassword}`);
@@ -338,11 +351,11 @@ async function main() {
     console.log('\n📊 TỔNG KẾT:');
     console.log(`   • ${createdPermissions.length} Permissions`);
     console.log(`   • ${createdRoles.length} Roles`);
-    console.log(`   • 1 Admin User`);
+    console.log(`   • 1 Super Admin User`);
     console.log('\n⚠️  LƯU Ý BẢO MẬT:');
     console.log('   - Vui lòng đổi password ngay sau lần đăng nhập đầu tiên!');
     console.log('   - Không chia sẻ thông tin đăng nhập này với người khác!');
-    console.log('   - Để thay đổi thông tin admin, chỉnh sửa file .env và chạy lại seed\n');
+    console.log('   - Để thay đổi thông tin super admin, chỉnh sửa file .env và chạy lại seed\n');
 
     console.log('🎉 Seed database thành công!\n');
   } catch (error) {
