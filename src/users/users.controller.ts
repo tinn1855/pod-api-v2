@@ -22,7 +22,6 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
 import { UserQueryDto } from './dto/user-query.dto';
 import { UserResponseDto, UserListResponseDto } from './dto/user-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -38,14 +37,20 @@ export class UsersController {
 
   @Post()
   @Permissions('USER_CREATE')
-  @ApiOperation({ summary: 'Create a new user' })
+  @ApiOperation({
+    summary: 'Create a new user',
+    description:
+      'Create a new user. System automatically generates a secure random temporary password (16 characters, meets strength requirements) and sends it via email along with verification link. Admin provides ONLY: name, email, roleId, teamId. Password field is NOT accepted in request body and NEVER returned in response. User must verify email, then login with temporary password, then change password on first login.',
+  })
   @ApiResponse({
     status: 201,
-    description: 'User created successfully',
+    description:
+      'User created successfully. Temporary password has been sent to user email. User must verify email, then login with temporary password, then change password on first login.',
     type: UserResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 400, description: 'Bad request - Invalid input data' })
   @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Not found - Role or team not found' })
   @ApiResponse({ status: 409, description: 'Conflict - Email already exists' })
   async create(@Body() createUserDto: CreateUserDto): Promise<UserResponseDto> {
     return this.usersService.create(createUserDto);
@@ -97,28 +102,6 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
   ): Promise<UserResponseDto> {
     return this.usersService.update(id, updateUserDto);
-  }
-
-  @Patch(':id/password')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Change user password' })
-  @ApiParam({
-    name: 'id',
-    description: 'User ID (UUID)',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Password changed successfully',
-    type: UserResponseDto,
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized - Incorrect old password' })
-  @ApiResponse({ status: 404, description: 'User not found' })
-  async changePassword(
-    @Param('id') id: string,
-    @Body() changePasswordDto: ChangePasswordDto,
-  ): Promise<UserResponseDto> {
-    return this.usersService.changePassword(id, changePasswordDto);
   }
 
   @Delete(':id')

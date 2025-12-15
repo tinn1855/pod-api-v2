@@ -33,6 +33,13 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('User not authenticated');
     }
 
+    // Reject temporary tokens - permissions require access tokens
+    if (user.type === 'temp') {
+      throw new ForbiddenException(
+        'Temporary tokens cannot be used for this operation',
+      );
+    }
+
     // Get user's role permissions
     const rolePermissions = await this.prisma.rolePermission.findMany({
       where: {
