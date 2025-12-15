@@ -1,98 +1,373 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# POD Management API v2
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A comprehensive backend API for POD (Project/Organization/Department) Management System built with NestJS, featuring secure authentication, role-based access control (RBAC), and user management.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 🚀 Tech Stack
 
-## Description
+- **Framework**: NestJS (Node.js)
+- **Database**: PostgreSQL with Prisma ORM
+- **Authentication**: JWT (JSON Web Tokens)
+- **Authorization**: Role-Based Access Control (RBAC) with Permissions
+- **Validation**: class-validator & class-transformer
+- **Documentation**: Swagger/OpenAPI
+- **Email**: Nodemailer (SMTP)
+- **Password Hashing**: bcrypt
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## ✨ Key Features
 
-## Project setup
+### 🔐 Authentication & Authorization
 
-```bash
-$ pnpm install
+- **JWT-based Authentication**: Secure token-based authentication
+- **Dual Token System**:
+  - **Access Tokens**: Normal authentication tokens for API access
+  - **Temporary Tokens**: Short-lived tokens (5-10 minutes) for forced password changes
+- **Role-Based Access Control (RBAC)**: Fine-grained permission system
+- **Permission Guards**: Endpoint-level permission checking
+- **Public Routes**: Support for public endpoints (login, verify-email, etc.)
+
+### 👥 User Management
+
+- **Automatic Password Generation**: System generates cryptographically secure random passwords (16 characters)
+- **Email Verification**: Users must verify their email before first login
+- **Forced Password Change**: New users must change password on first login
+- **User Status Management**: PENDING → ACTIVE workflow
+- **Soft Delete**: Users are soft-deleted (not permanently removed)
+- **Team Assignment**: Users can be assigned to teams
+- **Role Assignment**: Users are assigned roles with specific permissions
+
+### 🔒 Security Features
+
+- **Cryptographically Secure Passwords**: Uses `crypto.randomBytes()` for password generation (not `Math.random()`)
+- **Password Strength Requirements**: 
+  - Minimum 8 characters
+  - At least one uppercase letter
+  - At least one lowercase letter
+  - At least one number
+  - At least one special character
+- **Password Hashing**: All passwords are hashed using bcrypt (10 rounds)
+- **Email Verification Tokens**: Secure random tokens with 24-hour expiration
+- **Token Expiration**: Configurable token expiration times
+- **Never Expose Passwords**: Passwords are never returned in API responses
+
+### 📧 Email Service
+
+- **Verification Emails**: Sends email verification links with temporary passwords
+- **SMTP Configuration**: Supports Gmail, Outlook, Mailtrap, and other SMTP services
+- **HTML Email Templates**: Beautiful, responsive email templates
+- **Error Handling**: Graceful error handling for email failures
+
+### 🎯 Core Modules
+
+- **Users**: Complete user CRUD operations
+- **Roles**: Role management with permission assignment
+- **Permissions**: Permission management
+- **Teams**: Team/organization management
+- **Auth**: Authentication and authorization flows
+
+## 📋 API Endpoints
+
+### Authentication (`/auth`)
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| POST | `/auth/login` | User login (returns access token or temp token if password change required) | No |
+| POST | `/auth/verify-email` | Verify email address with token | No |
+| POST | `/auth/change-password` | Change password (accepts both temp and access tokens) | Yes (Token) |
+| POST | `/auth/logout` | User logout | Yes |
+
+### Users (`/users`)
+
+| Method | Endpoint | Description | Permission Required |
+|--------|----------|-------------|---------------------|
+| POST | `/users` | Create new user (auto-generates password) | `USER_CREATE` |
+| GET | `/users` | Get list of users (with pagination & filters) | - |
+| GET | `/users/:id` | Get user by ID | - |
+| PATCH | `/users/:id` | Update user information | - |
+| DELETE | `/users/:id` | Delete user (soft delete) | - |
+
+### Roles (`/roles`)
+
+| Method | Endpoint | Description | Permission Required |
+|--------|----------|-------------|---------------------|
+| POST | `/roles` | Create new role | `ROLE_CREATE` |
+| GET | `/roles` | Get list of roles | `ROLE_READ` |
+| GET | `/roles/:id` | Get role by ID | `ROLE_READ` |
+| PATCH | `/roles/:id` | Update role | `ROLE_UPDATE` |
+| PATCH | `/roles/:id/permissions` | Assign permissions to role | `ROLE_UPDATE` |
+| DELETE | `/roles/:id` | Delete role | `ROLE_DELETE` |
+
+### Teams (`/teams`)
+
+| Method | Endpoint | Description | Permission Required |
+|--------|----------|-------------|---------------------|
+| POST | `/teams` | Create new team | `TEAM_CREATE` |
+| GET | `/teams` | Get list of teams | `TEAM_READ` |
+| GET | `/teams/:id` | Get team by ID | `TEAM_READ` |
+| PATCH | `/teams/:id` | Update team | `TEAM_UPDATE` |
+| DELETE | `/teams/:id` | Delete team | `TEAM_DELETE` |
+
+### Permissions (`/permissions`)
+
+| Method | Endpoint | Description | Permission Required |
+|--------|----------|-------------|---------------------|
+| GET | `/permissions` | Get list of permissions | `PERMISSION_READ` |
+| GET | `/permissions/:id` | Get permission by ID | `PERMISSION_READ` |
+
+### Health Check (`/`)
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| GET | `/health` | Health check endpoint | No |
+
+## 🔄 User Registration & Login Flow
+
+### 1. Admin Creates User
+
+```
+POST /users
+Body: { name, email, roleId, teamId }
 ```
 
-## Compile and run the project
+**System Actions:**
+- Generates cryptographically secure random password (16 chars)
+- Hashes password using bcrypt
+- Generates email verification token
+- Sets `status = PENDING`, `emailVerified = false`, `mustChangePassword = true`
+- Sends verification email with temporary password and verification link
+- **Password is NEVER returned in response**
+
+### 2. User Verifies Email
+
+```
+POST /auth/verify-email
+Body: { verificationToken }
+```
+
+**System Actions:**
+- Validates token and expiration
+- Sets `emailVerified = true`
+- Sets `verificationToken = null`, `tokenExpiry = null`
+- Sets `status = ACTIVE`
+- **Does NOT change `mustChangePassword`**
+
+### 3. First Login
+
+```
+POST /auth/login
+Body: { email, password } // password = temporary password from email
+```
+
+**System Actions:**
+- Validates credentials
+- **Rejects if `emailVerified = false`**
+- If `mustChangePassword = true`:
+  - Returns `LoginRequirePasswordChangeDto` with `tempToken` (short-lived, 5-10 minutes)
+  - **Does NOT issue access token**
+- If `mustChangePassword = false`:
+  - Returns `AuthResponseDto` with `accessToken` and `refreshToken`
+
+### 4. Force Change Password
+
+```
+POST /auth/change-password
+Headers: { Authorization: Bearer <tempToken> }
+Body: { newPassword }
+```
+
+**System Actions:**
+- Validates password strength
+- Hashes new password
+- Updates user: `password`, `mustChangePassword = false`, `status = ACTIVE`
+- Issues new `accessToken` and `refreshToken`
+
+## 🔐 Security Rules
+
+1. **Password Generation**: 
+   - System generates all passwords (never accepts from client)
+   - Uses `crypto.randomBytes()` for cryptographically secure randomness
+   - Passwords meet strength requirements (uppercase, lowercase, number, special char)
+
+2. **Email Verification**:
+   - Required before login
+   - Token expires in 24 hours
+   - Does NOT automatically change `mustChangePassword`
+
+3. **Password Change**:
+   - Required on first login if `mustChangePassword = true`
+   - Uses temporary token (short-lived) for forced changes
+   - Uses access token for normal password changes
+   - Unified endpoint accepts both token types
+
+4. **Role Restrictions**:
+   - Only `SUPER_ADMIN` can assign `ADMIN` role
+   - `ADMIN` can only create users within their own team
+   - Super Admin cannot be deleted or have role changed
+
+5. **Token Security**:
+   - Temporary tokens can only access `/auth/change-password`
+   - Access tokens required for all other authenticated endpoints
+   - Permissions require access tokens (not temp tokens)
+
+## 🛠️ Project Setup
+
+### Prerequisites
+
+- Node.js (v18 or higher)
+- PostgreSQL database
+- pnpm (or npm/yarn)
+
+### Installation
 
 ```bash
-# development
-$ pnpm run start
+# Install dependencies
+$ pnpm install
 
-# watch mode
+# Copy environment file
+$ cp .env.example .env
+
+# Configure environment variables (see below)
+```
+
+### Environment Variables
+
+Create a `.env` file with the following variables:
+
+```env
+# Database
+DATABASE_URL="postgresql://user:password@localhost:5432/pod_db?schema=public"
+
+# JWT
+JWT_SECRET="your-secret-key-change-in-production"
+JWT_EXPIRES_IN="15m"
+JWT_TEMP_EXPIRES_IN="10m"
+JWT_REFRESH_EXPIRES_IN="7d"
+JWT_REFRESH_SECRET="your-refresh-secret-key"
+
+# Application
+PORT=3000
+APP_URL="http://localhost:3000"
+FRONTEND_URL="http://localhost:3001"
+
+# Email (SMTP)
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_USER="your-email@gmail.com"
+SMTP_PASSWORD="your-app-password"
+SMTP_FROM="your-email@gmail.com"
+```
+
+### Database Setup
+
+```bash
+# Generate Prisma Client
+$ pnpm prisma generate
+
+# Run migrations
+$ pnpm prisma migrate dev
+
+# Seed database (creates Super Admin, roles, permissions)
+$ pnpm prisma db seed
+```
+
+### Running the Application
+
+```bash
+# Development mode
 $ pnpm run start:dev
 
-# production mode
+# Production mode
+$ pnpm run build
 $ pnpm run start:prod
 ```
 
-## Run tests
+## 📚 API Documentation
+
+Once the application is running, access Swagger documentation at:
+
+```
+http://localhost:3000/api
+```
+
+The Swagger UI provides:
+- Complete API documentation
+- Interactive API testing
+- Request/response schemas
+- Authentication testing
+
+## 🏗️ Architecture
+
+### Project Structure
+
+```
+src/
+├── auth/              # Authentication & Authorization
+│   ├── guards/        # Auth guards (JWT, Permissions, Change Password)
+│   ├── strategies/    # Passport strategies (Access, Temp, Change Password)
+│   └── dto/          # Auth DTOs
+├── users/            # User management
+├── roles/            # Role management
+├── teams/            # Team management
+├── permissions/      # Permission management
+├── common/           # Shared utilities
+│   ├── decorators/   # Custom decorators (@Public, @Permissions)
+│   ├── services/     # Shared services (Email)
+│   └── validators/   # Custom validators
+└── prisma/           # Prisma service
+```
+
+### Design Principles
+
+- **SOLID Principles**: Clean, maintainable code
+- **DRY (Don't Repeat Yourself)**: Reusable components
+- **Thin Controllers**: Business logic in services
+- **DTO Validation**: All inputs validated with class-validator
+- **Type Safety**: Full TypeScript support with Prisma types
+- **Transaction Safety**: Prisma transactions for data integrity
+
+## 🧪 Testing
 
 ```bash
-# unit tests
+# Unit tests
 $ pnpm run test
 
-# e2e tests
+# E2E tests
 $ pnpm run test:e2e
 
-# test coverage
+# Test coverage
 $ pnpm run test:cov
 ```
 
-## Deployment
+## 📝 Code Quality
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+- **TypeScript**: Strict mode enabled
+- **ESLint**: Code linting
+- **Prettier**: Code formatting
+- **Type Safety**: Prisma-generated types throughout
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## 🚨 Important Notes
 
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
+1. **Production Deployment**:
+   - Change all default secrets
+   - Use strong JWT secrets
+   - Configure proper SMTP settings
+   - Set up proper CORS policies
+   - Use HTTPS in production
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+2. **Database**:
+   - Never reset or re-seed production database
+   - All migrations are safe and reversible
+   - Use transactions for multi-table operations
 
-## Resources
+3. **Security**:
+   - Passwords are never returned in API responses
+   - Temporary passwords are only sent via email
+   - Email verification is required before login
+   - Password change is forced on first login
 
-Check out a few resources that may come in handy when working with NestJS:
+## 📄 License
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+This project is [MIT licensed](LICENSE).
 
-## Support
+## 🤝 Contributing
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+This is an internal project. For questions or issues, please contact the development team.

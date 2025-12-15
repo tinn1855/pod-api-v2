@@ -15,7 +15,7 @@ export class UserQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter by role ID',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+    example: '926fb2dd-cab5-4390-943a-82c4a39c15ec',
   })
   @IsOptional()
   @IsUUID()

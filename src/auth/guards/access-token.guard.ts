@@ -3,8 +3,12 @@ import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
 
+/**
+ * Guard for access tokens only
+ * Rejects temporary tokens
+ */
 @Injectable()
-export class JwtAuthGuard extends AuthGuard('access-token') {
+export class AccessTokenGuard extends AuthGuard('access-token') {
   constructor(private reflector: Reflector) {
     super();
   }

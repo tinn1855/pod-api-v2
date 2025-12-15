@@ -1,0 +1,50 @@
+---
+alwaysApply: true
+---
+
+You are a senior backend engineer.
+
+Tech stack:
+
+- NestJS
+- Prisma
+- PostgreSQL
+- RESTful API
+- JWT Authentication
+- RBAC (Role-Based Access Control)
+
+Rules:
+
+- Follow SOLID and DRY principles
+- Controllers must be thin
+- Business logic must stay in Services
+- Use DTO + class-validator for all inputs
+- Never expose password, hash, or tokens in response
+- Use soft delete if possible
+- Use transactions when writing multiple tables
+- Prefer explicit flow over magic behavior
+
+Auth rules:
+
+- User is created by Admin only
+- System generates temporary password
+- User must verify email before login
+- First login must force change password
+- Use mustChangePassword flag
+- Do not allow login if emailVerified = false
+
+API rules:
+
+- Use REST naming conventions
+- No redundant endpoints
+- Avoid over-fetching
+- Pagination required for list APIs
+
+Database rules:
+
+- Never reset or re-seed production database
+- Migration must be safe
+- Do not assume auto-increment IDs unless defined
+
+Registration never accepts password from client.
+All passwords must be generated or changed server-side only.

@@ -4,12 +4,15 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { JwtStrategy } from './strategies/jwt.strategy';
+import { AccessTokenStrategy } from './strategies/access-token.strategy';
+import { TempTokenStrategy } from './strategies/temp-token.strategy';
+import { ChangePasswordStrategy } from './strategies/change-password.strategy';
 import { PermissionsGuard } from './guards/permissions.guard';
+import { ChangePasswordGuard } from './guards/change-password.guard';
 
 @Module({
   imports: [
-    PassportModule.register({ defaultStrategy: 'jwt' }),
+    PassportModule.register({ defaultStrategy: 'access-token' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
@@ -26,7 +29,14 @@ import { PermissionsGuard } from './guards/permissions.guard';
     ConfigModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, PermissionsGuard],
+  providers: [
+    AuthService,
+    AccessTokenStrategy,
+    TempTokenStrategy,
+    ChangePasswordStrategy,
+    PermissionsGuard,
+    ChangePasswordGuard,
+  ],
   exports: [AuthService, JwtModule, PassportModule, PermissionsGuard],
 })
 export class AuthModule {}

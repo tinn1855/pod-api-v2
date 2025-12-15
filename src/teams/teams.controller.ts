@@ -22,10 +22,7 @@ import { TeamsService } from './teams.service';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
 import { TeamQueryDto } from './dto/team-query.dto';
-import {
-  TeamResponseDto,
-  TeamListResponseDto,
-} from './dto/team-response.dto';
+import { TeamResponseDto, TeamListResponseDto } from './dto/team-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../common/decorators/permissions.decorator';
@@ -45,8 +42,14 @@ export class TeamsController {
     description: 'Team created successfully',
     type: TeamResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
-  @ApiResponse({ status: 409, description: 'Conflict - Team name already exists' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Insufficient permissions',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - Team name already exists',
+  })
   async create(@Body() createTeamDto: CreateTeamDto): Promise<TeamResponseDto> {
     return this.teamsService.create(createTeamDto);
   }
@@ -69,7 +72,7 @@ export class TeamsController {
   @ApiParam({
     name: 'id',
     description: 'Team ID (UUID)',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+    example: '926fb2dd-cab5-4390-943a-82c4a39c15ec',
   })
   @ApiResponse({
     status: 200,
@@ -87,7 +90,7 @@ export class TeamsController {
   @ApiParam({
     name: 'id',
     description: 'Team ID (UUID)',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+    example: '926fb2dd-cab5-4390-943a-82c4a39c15ec',
   })
   @ApiResponse({
     status: 200,
@@ -95,7 +98,10 @@ export class TeamsController {
     type: TeamResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Team not found' })
-  @ApiResponse({ status: 409, description: 'Conflict - Team name already exists' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - Team name already exists',
+  })
   async update(
     @Param('id') id: string,
     @Body() updateTeamDto: UpdateTeamDto,
@@ -110,7 +116,7 @@ export class TeamsController {
   @ApiParam({
     name: 'id',
     description: 'Team ID (UUID)',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+    example: '926fb2dd-cab5-4390-943a-82c4a39c15ec',
   })
   @ApiResponse({
     status: 200,

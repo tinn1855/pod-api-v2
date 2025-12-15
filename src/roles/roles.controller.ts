@@ -23,10 +23,7 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { AssignPermissionsDto } from './dto/assign-permissions.dto';
 import { RoleQueryDto } from './dto/role-query.dto';
-import {
-  RoleResponseDto,
-  RoleListResponseDto,
-} from './dto/role-response.dto';
+import { RoleResponseDto, RoleListResponseDto } from './dto/role-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../common/decorators/permissions.decorator';
@@ -46,8 +43,14 @@ export class RolesController {
     description: 'Role created successfully',
     type: RoleResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
-  @ApiResponse({ status: 409, description: 'Conflict - Role name already exists' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Insufficient permissions',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - Role name already exists',
+  })
   async create(@Body() createRoleDto: CreateRoleDto): Promise<RoleResponseDto> {
     return this.rolesService.create(createRoleDto);
   }
@@ -96,7 +99,10 @@ export class RolesController {
     type: RoleResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Role not found' })
-  @ApiResponse({ status: 409, description: 'Conflict - Role name already exists' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict - Role name already exists',
+  })
   async update(
     @Param('id') id: string,
     @Body() updateRoleDto: UpdateRoleDto,
@@ -106,18 +112,23 @@ export class RolesController {
 
   @Patch(':id/permissions')
   @Permissions('ROLE_UPDATE')
-  @ApiOperation({ summary: 'Assign permissions to role (replaces existing permissions)' })
+  @ApiOperation({
+    summary: 'Assign permissions to role (replaces existing permissions)',
+  })
   @ApiParam({
     name: 'id',
     description: 'Role ID (UUID)',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+    example: '926fb2dd-cab5-4390-943a-82c4a39c15ec',
   })
   @ApiResponse({
     status: 200,
     description: 'Permissions assigned successfully',
     type: RoleResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Bad request - Invalid permission IDs' })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid permission IDs',
+  })
   @ApiResponse({ status: 404, description: 'Role not found' })
   async assignPermissions(
     @Param('id') id: string,
@@ -133,7 +144,7 @@ export class RolesController {
   @ApiParam({
     name: 'id',
     description: 'Role ID (UUID)',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+    example: '926fb2dd-cab5-4390-943a-82c4a39c15ec',
   })
   @ApiResponse({
     status: 200,

@@ -3,18 +3,16 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
 import { UserQueryDto } from './dto/user-query.dto';
 import { UserResponseDto, UserListResponseDto } from './dto/user-response.dto';
 import { EmailService } from '../common/services/email.service';
-import { UserStatus } from '@prisma/client';
+import { UserStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -74,15 +72,51 @@ export class UsersService {
       }
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+    // Generate cryptographically secure random temporary password
+    // Password must meet strength requirements: uppercase, lowercase, number, special char, min 8 chars
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const numbers = '0123456789';
+    const special = '!@#$%^&*(),.?":{}|<>';
+    const allChars = uppercase + lowercase + numbers + special;
+
+    // Generate password with at least one of each required type using crypto.randomBytes
+    let tempPassword = '';
+    // Use crypto.randomBytes for cryptographically secure random selection
+    const randomBytes = crypto.randomBytes(4);
+    tempPassword += uppercase[randomBytes[0] % uppercase.length];
+    tempPassword += lowercase[randomBytes[1] % lowercase.length];
+    tempPassword += numbers[randomBytes[2] % numbers.length];
+    tempPassword += special[randomBytes[3] % special.length];
+
+    // Fill remaining length (minimum 8, so 4 more chars) using crypto.randomBytes
+    const remainingLength = 16 - tempPassword.length;
+    const additionalBytes = crypto.randomBytes(remainingLength);
+    for (let i = 0; i < remainingLength; i++) {
+      tempPassword += allChars[additionalBytes[i] % allChars.length];
+    }
+
+    // Shuffle the password using Fisher-Yates algorithm with crypto.randomBytes
+    const passwordArray = tempPassword.split('');
+    for (let i = passwordArray.length - 1; i > 0; i--) {
+      const randomBytesForShuffle = crypto.randomBytes(1);
+      const j = randomBytesForShuffle[0] % (i + 1);
+      [passwordArray[i], passwordArray[j]] = [
+        passwordArray[j],
+        passwordArray[i],
+      ];
+    }
+    tempPassword = passwordArray.join('');
+
+    // Hash password using bcrypt
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
     // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const tokenExpiry = new Date();
     tokenExpiry.setHours(tokenExpiry.getHours() + 24); // 24 hours expiry
 
-    // Create user with PENDING status and emailVerified = false
+    // Create user with PENDING status, emailVerified = false, mustChangePassword = true
     const user = await this.prisma.user.create({
       data: {
         name: createUserDto.name,
@@ -102,25 +136,39 @@ export class UsersService {
       },
     });
 
-    // Send verification email
+    // Send verification email with temporary password
     try {
-      await this.emailService.sendVerificationEmail(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+      await this.emailService.sendVerificationEmailWithPassword(
         user.email,
         user.name,
         verificationToken,
+        tempPassword,
       );
-      console.log(`✅ Verification email sent successfully to ${user.email}`);
-    } catch (error: any) {
+      console.log(
+        `✅ Verification email with password sent successfully to ${user.email}`,
+      );
+    } catch (error: unknown) {
       // Log error but don't fail user creation
-      console.error('❌ Failed to send verification email:', error?.message || error);
-      console.error('Error details:', JSON.stringify({
-        email: user.email,
-        errorMessage: error?.message || 'Unknown error',
-        errorCode: error?.code || 'N/A',
-      }));
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const errorCode =
+        error && typeof error === 'object' && 'code' in error
+          ? String(error.code)
+          : 'N/A';
+      console.error('❌ Failed to send verification email:', errorMessage);
+      console.error(
+        'Error details:',
+        JSON.stringify({
+          email: user.email,
+          errorMessage,
+          errorCode,
+        }),
+      );
       // Optionally, you could delete the user here if email sending is critical
     }
 
+    // Return user response WITHOUT password
     return this.mapToUserResponse(user);
   }
 
@@ -128,7 +176,7 @@ export class UsersService {
     const { status, roleId, teamId, page = 1, limit = 10 } = query;
     const skip = (page - 1) * limit;
 
-    const where: any = {
+    const where: Prisma.UserWhereInput = {
       deletedAt: null, // Only non-deleted users
     };
 
@@ -190,7 +238,10 @@ export class UsersService {
     return this.mapToUserResponse(user);
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<UserResponseDto> {
+  async update(
+    id: string,
+    updateUserDto: UpdateUserDto,
+  ): Promise<UserResponseDto> {
     // Check if user exists and not deleted
     const existingUser = await this.prisma.user.findUnique({
       where: { id },
@@ -281,52 +332,6 @@ export class UsersService {
     return this.mapToUserResponse(user);
   }
 
-  async changePassword(
-    id: string,
-    changePasswordDto: ChangePasswordDto,
-  ): Promise<UserResponseDto> {
-    // Find user
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    if (user.deletedAt !== null) {
-      throw new NotFoundException('User not found');
-    }
-
-    // Verify old password
-    const isOldPasswordValid = await bcrypt.compare(
-      changePasswordDto.oldPassword,
-      user.password,
-    );
-
-    if (!isOldPasswordValid) {
-      throw new UnauthorizedException('Old password is incorrect');
-    }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(changePasswordDto.newPassword, 10);
-
-    // Update password and set mustChangePassword to false
-    const updatedUser = await this.prisma.user.update({
-      where: { id },
-      data: {
-        password: hashedPassword,
-        mustChangePassword: false,
-      },
-      include: {
-        role: true,
-        team: true,
-      },
-    });
-
-    return this.mapToUserResponse(updatedUser);
-  }
-
   async remove(id: string): Promise<{ message: string }> {
     // Check if user exists
     const user = await this.prisma.user.findUnique({
@@ -363,7 +368,14 @@ export class UsersService {
     return { message: 'User deleted successfully' };
   }
 
-  private mapToUserResponse(user: any): UserResponseDto {
+  private mapToUserResponse(
+    user: Prisma.UserGetPayload<{
+      include: {
+        role: true;
+        team: true;
+      };
+    }>,
+  ): UserResponseDto {
     return {
       id: user.id,
       name: user.name,
