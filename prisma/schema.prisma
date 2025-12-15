@@ -1,0 +1,348 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------ ENUMS ------------------
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  BANNED
+}
+
+enum ShopStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum IdeaStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum DesignStatus {
+  PENDING
+  REVIEWING
+  APPROVED
+  REJECTED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  ASSIGNED
+  IN_PRODUCTION
+  FULFILLED
+  CANCELLED
+  REFUNDED
+}
+
+enum PlatformStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum ProductionJobStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+// ------------------ USERS ------------------
+
+model User {
+  id               String    @id @default(uuid())
+  name             String
+  email            String    @unique
+  password         String
+  status           UserStatus @default(PENDING)
+  emailVerified    Boolean   @default(false)
+  verificationToken String?  @unique
+  tokenExpiry      DateTime?
+  mustChangePassword Boolean @default(true)
+  roleId           String
+  teamId           String?
+  deletedAt        DateTime?
+
+  role             Role      @relation(fields: [roleId], references: [id])
+  team             Team?     @relation(fields: [teamId], references: [id])
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  users       User[]
+  permissions RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("roles")
+}
+
+model Permission {
+  id   String @id @default(uuid())
+  name String @unique
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Team {
+  id    String @id @default(uuid())
+  name  String
+  users User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("teams")
+}
+
+// ------------------ SHOP / PLATFORM ------------------
+
+model Shop {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  status    ShopStatus @default(ACTIVE)
+  deletedAt DateTime?
+
+  accounts  Account[]
+  products  Product[]
+  contents  Content[]
+  orders    Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("shops")
+}
+
+model Account {
+  id        String   @id @default(uuid())
+  shopId    String
+  name      String?
+  deletedAt DateTime?
+
+  shop      Shop             @relation(fields: [shopId], references: [id])
+  platforms AccountPlatform[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("accounts")
+}
+
+model Platform {
+  id              String            @id @default(uuid())
+  code            String            @unique
+  name            String
+  accountPlatforms AccountPlatform[]
+  orders          Order[]
+
+  @@map("platforms")
+}
+
+model AccountPlatform {
+  id             String   @id @default(uuid())
+  accountId      String
+  platformId     String
+  externalStoreId String?
+  status         PlatformStatus @default(ACTIVE)
+  deletedAt      DateTime?
+
+  account        Account          @relation(fields: [accountId], references: [id])
+  platform       Platform         @relation(fields: [platformId], references: [id])
+  listings       PlatformListing[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([accountId, platformId, externalStoreId])
+  @@map("account_platforms")
+}
+
+// ------------------ LISTINGS ------------------
+
+model PlatformListing {
+  id                String   @id @default(uuid())
+  accountPlatformId String
+  designId          String?
+  contentId         String
+  platformListingId String
+  deletedAt         DateTime?
+
+  accountPlatform   AccountPlatform      @relation(fields: [accountPlatformId], references: [id])
+  content           Content              @relation(fields: [contentId], references: [id])
+
+  variants          PlatformListingVariant[]
+  orderItems        OrderItem[]
+
+  @@unique([accountPlatformId, platformListingId])
+  @@map("platform_listings")
+}
+
+model PlatformListingVariant {
+  id                String @id @default(uuid())
+  platformListingId String
+  variantSku        String?
+  attributes        Json?
+
+  listing           PlatformListing @relation(fields: [platformListingId], references: [id])
+
+  @@map("platform_listing_variants")
+}
+
+// ------------------ PRODUCTS ------------------
+
+model Product {
+  id        String   @id @default(uuid())
+  shopId    String
+  name      String
+  sku       String
+  deletedAt DateTime?
+
+  shop      Shop           @relation(fields: [shopId], references: [id])
+  variants  ProductVariant[]
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, sku])
+  @@map("products")
+}
+
+model ProductVariant {
+  id         String @id @default(uuid())
+  productId  String
+  variantSku String
+  size       String?
+  color      String?
+
+  product    Product @relation(fields: [productId], references: [id])
+
+  @@map("product_variants")
+}
+
+// ------------------ CONTENT / DESIGN ------------------
+
+model Content {
+  id        String   @id @default(uuid())
+  shopId    String
+  designId  String?
+  productId String?
+  deletedAt DateTime?
+
+  shop      Shop             @relation(fields: [shopId], references: [id])
+  design    Design?          @relation(fields: [designId], references: [id])
+  listings  PlatformListing[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("contents")
+}
+
+model Design {
+  id        String   @id @default(uuid())
+  ideaId    String?
+  userId    String
+  version   Int      @default(1)
+  deletedAt DateTime?
+
+  contents  Content[]
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("designs")
+}
+
+// ------------------ ORDERS ------------------
+
+model Order {
+  id                String   @id @default(uuid())
+  shopId            String
+  accountPlatformId String?
+  platformId        String?
+  platformOrderId   String?
+  deletedAt         DateTime?
+
+  shop              Shop       @relation(fields: [shopId], references: [id])
+  platform          Platform?  @relation(fields: [platformId], references: [id])
+  items             OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id                 String   @id @default(uuid())
+  orderId            String
+  productId          String?
+  productVariantId   String?
+  designId           String?
+  contentId          String?
+  platformListingId  String?
+  deletedAt          DateTime?
+
+  order              Order            @relation(fields: [orderId], references: [id])
+  product            Product?         @relation(fields: [productId], references: [id])
+  design             Design?          @relation(fields: [designId], references: [id])
+  listing            PlatformListing? @relation(fields: [platformListingId], references: [id])
+
+  @@map("order_items")
+}
+
+// ------------------ PRODUCTION JOB ------------------
+
+model ProductionJob {
+  id            String                @id @default(uuid())
+  orderItemId   String
+  supplierId    String?
+  externalJobId String?
+  status        ProductionJobStatus   @default(PENDING)
+  notes         String?
+  deletedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("production_jobs")
+}
