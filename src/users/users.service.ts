@@ -43,12 +43,12 @@ export class UsersService {
     }
 
     // Check if trying to create Super Admin
-    if (role.name === 'Super Admin') {
+    if (role.name === 'SUPER_ADMIN') {
       // Check if Super Admin already exists
       const existingSuperAdmin = await this.prisma.user.findFirst({
         where: {
           role: {
-            name: 'Super Admin',
+            name: 'SUPER_ADMIN',
           },
           deletedAt: null, // Only count non-deleted users
         },
@@ -208,12 +208,12 @@ export class UsersService {
     }
 
     // Prevent changing Super Admin's role to another role
-    if (existingUser.role.name === 'Super Admin' && updateUserDto.roleId) {
+    if (existingUser.role.name === 'SUPER_ADMIN' && updateUserDto.roleId) {
       const newRole = await this.prisma.role.findUnique({
         where: { id: updateUserDto.roleId },
       });
 
-      if (newRole && newRole.name !== 'Super Admin') {
+      if (newRole && newRole.name !== 'SUPER_ADMIN') {
         throw new BadRequestException(
           'Cannot change Super Admin role. Super Admin must always remain as Super Admin to ensure system has at least one Super Admin.',
         );
@@ -231,12 +231,12 @@ export class UsersService {
       }
 
       // Check if trying to change role to Super Admin
-      if (role.name === 'Super Admin') {
+      if (role.name === 'SUPER_ADMIN') {
         // Check if there's already a Super Admin (excluding current user)
         const existingSuperAdmin = await this.prisma.user.findFirst({
           where: {
             role: {
-              name: 'Super Admin',
+              name: 'SUPER_ADMIN',
             },
             deletedAt: null,
             id: {
@@ -345,7 +345,7 @@ export class UsersService {
     }
 
     // Prevent deleting Super Admin
-    if (user.role.name === 'Super Admin') {
+    if (user.role.name === 'SUPER_ADMIN') {
       throw new BadRequestException(
         'Cannot delete Super Admin. Super Admin is a protected account and cannot be deleted.',
       );
