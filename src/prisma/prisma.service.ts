@@ -7,93 +7,9 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   async onModuleInit() {
-    // #region agent log
-    const dbUrl = process.env.DATABASE_URL;
-    const dbUrlMasked = dbUrl ? dbUrl.replace(/:[^:@]+@/, ':****@') : 'NOT_SET';
-    fetch('http://127.0.0.1:7242/ingest/a495b76f-9510-48ff-81af-f164daeec251', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        location: 'prisma.service.ts:9',
-        message: 'Checking DATABASE_URL before connection',
-        data: {
-          dbUrlExists: !!dbUrl,
-          dbUrlMasked: dbUrlMasked,
-          dbUrlLength: dbUrl?.length || 0,
-        },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'run1',
-        hypothesisId: 'A',
-      }),
-    }).catch(() => {});
-    // #endregion
-
-    // #region agent log
     try {
-      fetch(
-        'http://127.0.0.1:7242/ingest/a495b76f-9510-48ff-81af-f164daeec251',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            location: 'prisma.service.ts:14',
-            message: 'Attempting database connection',
-            data: {},
-            timestamp: Date.now(),
-            sessionId: 'debug-session',
-            runId: 'run1',
-            hypothesisId: 'B',
-          }),
-        },
-      ).catch(() => {});
-      // #endregion
       await this.$connect();
-      // #region agent log
-      fetch(
-        'http://127.0.0.1:7242/ingest/a495b76f-9510-48ff-81af-f164daeec251',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            location: 'prisma.service.ts:17',
-            message: 'Database connection successful',
-            data: {},
-            timestamp: Date.now(),
-            sessionId: 'debug-session',
-            runId: 'run1',
-            hypothesisId: 'B',
-          }),
-        },
-      ).catch(() => {});
-      // #endregion
     } catch (error: any) {
-      // #region agent log
-      const errorDetails = {
-        name: error?.name,
-        code: error?.code,
-        message: error?.message?.substring(0, 200),
-        errorCode: error?.errorCode,
-        meta: error?.meta || null,
-      };
-      fetch(
-        'http://127.0.0.1:7242/ingest/a495b76f-9510-48ff-81af-f164daeec251',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            location: 'prisma.service.ts:70',
-            message: 'Database connection failed',
-            data: errorDetails,
-            timestamp: Date.now(),
-            sessionId: 'debug-session',
-            runId: 'post-fix',
-            hypothesisId: 'C',
-          }),
-        },
-      ).catch(() => {});
-      // #endregion
-
       // Enhanced error message for authentication failures
       if (error?.errorCode === 'P1000') {
         const dbUrl = process.env.DATABASE_URL || '';
