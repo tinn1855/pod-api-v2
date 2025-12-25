@@ -13,6 +13,7 @@ import { SharedServicesModule } from './common/services/shared-services.module';
 import { FilesModule } from './files/files.module';
 import { AttachmentsModule } from './files/attachments/attachments.module';
 import { BoardsModule } from './boards/boards.module';
+import { TasksModule } from './tasks/tasks.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -30,6 +31,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     FilesModule,
     AttachmentsModule,
     BoardsModule,
+    TasksModule,
   ],
   controllers: [AppController],
   providers: [
