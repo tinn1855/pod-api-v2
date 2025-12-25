@@ -12,6 +12,7 @@ import { PermissionsModule } from './permissions/permissions.module';
 import { SharedServicesModule } from './common/services/shared-services.module';
 import { FilesModule } from './files/files.module';
 import { AttachmentsModule } from './files/attachments/attachments.module';
+import { BoardsModule } from './boards/boards.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -28,6 +29,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     PermissionsModule,
     FilesModule,
     AttachmentsModule,
+    BoardsModule,
   ],
   controllers: [AppController],
   providers: [
