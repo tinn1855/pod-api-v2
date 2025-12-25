@@ -14,6 +14,7 @@ import { FilesModule } from './files/files.module';
 import { AttachmentsModule } from './files/attachments/attachments.module';
 import { BoardsModule } from './boards/boards.module';
 import { TasksModule } from './tasks/tasks.module';
+import { DesignFoldersModule } from './design-folders/design-folders.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -32,6 +33,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     AttachmentsModule,
     BoardsModule,
     TasksModule,
+    DesignFoldersModule,
   ],
   controllers: [AppController],
   providers: [
