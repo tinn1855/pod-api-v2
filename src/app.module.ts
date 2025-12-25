@@ -10,6 +10,8 @@ import { TeamsModule } from './teams/teams.module';
 import { RolesModule } from './roles/roles.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { SharedServicesModule } from './common/services/shared-services.module';
+import { FilesModule } from './files/files.module';
+import { AttachmentsModule } from './files/attachments/attachments.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -24,6 +26,8 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     TeamsModule,
     RolesModule,
     PermissionsModule,
+    FilesModule,
+    AttachmentsModule,
   ],
   controllers: [AppController],
   providers: [
