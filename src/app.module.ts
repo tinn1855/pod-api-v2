@@ -9,6 +9,7 @@ import { UsersModule } from './users/users.module';
 import { TeamsModule } from './teams/teams.module';
 import { RolesModule } from './roles/roles.module';
 import { PermissionsModule } from './permissions/permissions.module';
+import { SharedServicesModule } from './common/services/shared-services.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -17,6 +18,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
       isGlobal: true,
     }),
     PrismaModule,
+    SharedServicesModule,
     AuthModule,
     UsersModule,
     TeamsModule,

@@ -48,3 +48,18 @@ Database rules:
 
 Registration never accepts password from client.
 All passwords must be generated or changed server-side only.
+
+RESTFUL RULES (MUST FOLLOW)
+
+- Use plural nouns for resources: /boards, /tasks, /designs, /contents, /files, /attachments, /comments, /activity-logs
+- No verbs in URLs. No endpoints like /move, /approve, /reject, /getAll...
+- Use HTTP methods:
+  GET list/detail, POST create, PATCH partial update, DELETE soft delete.
+- Use nested routes ONLY for list/create under parent context:
+  POST /boards/:boardId/tasks, GET /boards/:boardId/tasks, etc.
+  Updates/deletes use top-level resource route: PATCH /tasks/:id, DELETE /tasks/:id
+- Filtering/sorting/pagination via query params only.
+- Proper status codes: 201 for POST, 200 for GET/PATCH, 204 for DELETE, 422 for business rule violations.
+- Do NOT refactor existing auth/users/roles/permissions APIs. No breaking change.
+- Keep changes scoped to the current feature module + shared utils only.
+- Provide output as file-by-file diffs.
