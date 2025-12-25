@@ -36,6 +36,14 @@ export class CreateUserDto {
   email: string;
 
   @ApiProperty({
+    description: 'Organization ID (UUID). User will belong to this organization.',
+    example: '926fb2dd-cab5-4390-943a-82c4a39c15ec',
+    required: true,
+  })
+  @IsUUID()
+  orgId: string;
+
+  @ApiProperty({
     description: 'Role ID (UUID). User will be assigned this role.',
     example: '926fb2dd-cab5-4390-943a-82c4a39c15ec',
     required: true,

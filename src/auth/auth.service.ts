@@ -46,13 +46,6 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Reject login if email is not verified
-    if (!user.emailVerified) {
-      throw new UnauthorizedException(
-        'Please verify your email address before logging in',
-      );
-    }
-
     // Verify password
     const isPasswordValid = await bcrypt.compare(
       loginDto.password,
@@ -168,39 +161,11 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
-  async verifyEmail(token: string): Promise<{ message: string }> {
-    const user = await this.prisma.user.findFirst({
-      where: { verificationToken: token },
-    });
-
-    if (!user) {
-      throw new NotFoundException('Invalid or expired verification token');
-    }
-
-    // Check if token is expired
-    if (user.tokenExpiry && user.tokenExpiry < new Date()) {
-      throw new BadRequestException('Verification token has expired');
-    }
-
-    // Check if already verified
-    if (user.emailVerified) {
-      throw new BadRequestException('Email is already verified');
-    }
-
-    // Update user: set emailVerified = true, clear token
-    // MUST NOT change mustChangePassword here
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailVerified: true,
-        verificationToken: null,
-        tokenExpiry: null,
-      },
-    });
-
+  // Email verification removed - users are created as ACTIVE by default
+  // This method is kept for backward compatibility but does nothing
+  async verifyEmail(_token: string): Promise<{ message: string }> {
     return {
-      message:
-        'Email verified successfully. Please log in and change your password.',
+      message: 'Email verification is no longer required.',
     };
   }
 

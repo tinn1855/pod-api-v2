@@ -7,7 +7,6 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { AssignPermissionsDto } from './dto/assign-permissions.dto';
 import { RoleQueryDto } from './dto/role-query.dto';
 import {
   RoleResponseDto,
@@ -124,64 +123,79 @@ export class RolesService {
       }
     }
 
-    const role = await this.prisma.role.update({
-      where: { id },
-      data: updateRoleDto,
-      include: {
-        permissions: {
-          include: {
-            permission: true,
+    // Handle permissions update if provided
+    if (updateRoleDto.permissionIds !== undefined) {
+      // Validate all permissions exist
+      const permissions = await this.prisma.permission.findMany({
+        where: {
+          id: {
+            in: updateRoleDto.permissionIds,
           },
         },
-        _count: {
-          select: { users: true },
+      });
+
+      if (permissions.length !== updateRoleDto.permissionIds.length) {
+        throw new BadRequestException('One or more permission IDs are invalid');
+      }
+
+      // Delete existing permissions
+      await this.prisma.rolePermission.deleteMany({
+        where: { roleId: id },
+      });
+
+      // Assign new permissions
+      if (updateRoleDto.permissionIds.length > 0) {
+        await this.prisma.rolePermission.createMany({
+          data: updateRoleDto.permissionIds.map((permissionId) => ({
+            roleId: id,
+            permissionId,
+          })),
+        });
+      }
+    }
+
+    // Prepare update data (exclude permissionIds as it's not a direct field)
+    const { permissionIds, ...roleUpdateData } = updateRoleDto;
+
+    // Update role fields if provided
+    let role;
+    if (Object.keys(roleUpdateData).length > 0) {
+      role = await this.prisma.role.update({
+        where: { id },
+        data: roleUpdateData,
+        include: {
+          permissions: {
+            include: {
+              permission: true,
+            },
+          },
+          _count: {
+            select: { users: true },
+          },
         },
-      },
-    });
-
-    return this.mapToRoleResponse(role);
-  }
-
-  async assignPermissions(
-    id: string,
-    assignPermissionsDto: AssignPermissionsDto,
-  ): Promise<RoleResponseDto> {
-    const role = await this.prisma.role.findUnique({
-      where: { id },
-    });
+      });
+    } else {
+      // If only permissions were updated, fetch the role
+      role = await this.prisma.role.findUnique({
+        where: { id },
+        include: {
+          permissions: {
+            include: {
+              permission: true,
+            },
+          },
+          _count: {
+            select: { users: true },
+          },
+        },
+      });
+    }
 
     if (!role) {
       throw new NotFoundException('Role not found');
     }
 
-    // Validate all permissions exist
-    const permissions = await this.prisma.permission.findMany({
-      where: {
-        id: {
-          in: assignPermissionsDto.permissionIds,
-        },
-      },
-    });
-
-    if (permissions.length !== assignPermissionsDto.permissionIds.length) {
-      throw new BadRequestException('One or more permission IDs are invalid');
-    }
-
-    // Delete existing permissions
-    await this.prisma.rolePermission.deleteMany({
-      where: { roleId: id },
-    });
-
-    // Assign new permissions
-    await this.prisma.rolePermission.createMany({
-      data: assignPermissionsDto.permissionIds.map((permissionId) => ({
-        roleId: id,
-        permissionId,
-      })),
-    });
-
-    // Return updated role
-    return this.findOne(id);
+    return this.mapToRoleResponse(role);
   }
 
   async remove(id: string): Promise<{ message: string }> {

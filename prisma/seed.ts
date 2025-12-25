@@ -176,13 +176,23 @@ async function main() {
 
   await prisma.$transaction(
     async (tx) => {
-      /* ---------- TEAM ---------- */
-      let team = await tx.team.findFirst({
+      /* ---------- ORGANIZATION ---------- */
+      let org = await tx.organization.findFirst({
         where: { name: 'Default Organization' },
+      });
+      if (!org) {
+        org = await tx.organization.create({
+          data: { name: 'Default Organization' },
+        });
+      }
+
+      /* ---------- TEAM (optional) ---------- */
+      let team = await tx.team.findFirst({
+        where: { name: 'Default Team' },
       });
       if (!team) {
         team = await tx.team.create({
-          data: { name: 'Default Organization' },
+          data: { name: 'Default Team' },
         });
       }
 
@@ -239,9 +249,9 @@ async function main() {
         update: {
           password: hashedPassword,
           status: UserStatus.ACTIVE,
-          emailVerified: true,
           mustChangePassword: false,
           roleId: superAdminRoleId,
+          orgId: org.id,
           teamId: team.id,
         },
         create: {
@@ -249,9 +259,9 @@ async function main() {
           email: adminEmail,
           password: hashedPassword,
           status: UserStatus.ACTIVE,
-          emailVerified: true,
           mustChangePassword: false,
           roleId: superAdminRoleId,
+          orgId: org.id,
           teamId: team.id,
         },
       });

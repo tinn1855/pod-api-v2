@@ -15,9 +15,6 @@ export class UserResponseDto {
   status: UserStatus;
 
   @ApiProperty()
-  emailVerified: boolean;
-
-  @ApiProperty()
   mustChangePassword: boolean;
 
   @ApiProperty()

@@ -87,7 +87,10 @@ export class RolesController {
 
   @Patch(':id')
   @Permissions('ROLE_UPDATE')
-  @ApiOperation({ summary: 'Update role information' })
+  @ApiOperation({
+    summary: 'Update role information (including permissions)',
+    description: 'Update role name, description, and/or permissions. To update permissions, include permissionIds array in the request body (replaces existing permissions). Omit permissionIds to keep current permissions.',
+  })
   @ApiParam({
     name: 'id',
     description: 'Role ID (UUID)',
@@ -100,6 +103,10 @@ export class RolesController {
   })
   @ApiResponse({ status: 404, description: 'Role not found' })
   @ApiResponse({
+    status: 400,
+    description: 'Bad request - Invalid permission IDs',
+  })
+  @ApiResponse({
     status: 409,
     description: 'Conflict - Role name already exists',
   })
@@ -108,33 +115,6 @@ export class RolesController {
     @Body() updateRoleDto: UpdateRoleDto,
   ): Promise<RoleResponseDto> {
     return this.rolesService.update(id, updateRoleDto);
-  }
-
-  @Patch(':id/permissions')
-  @Permissions('ROLE_UPDATE')
-  @ApiOperation({
-    summary: 'Assign permissions to role (replaces existing permissions)',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Role ID (UUID)',
-    example: '926fb2dd-cab5-4390-943a-82c4a39c15ec',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Permissions assigned successfully',
-    type: RoleResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad request - Invalid permission IDs',
-  })
-  @ApiResponse({ status: 404, description: 'Role not found' })
-  async assignPermissions(
-    @Param('id') id: string,
-    @Body() assignPermissionsDto: AssignPermissionsDto,
-  ): Promise<RoleResponseDto> {
-    return this.rolesService.assignPermissions(id, assignPermissionsDto);
   }
 
   @Delete(':id')

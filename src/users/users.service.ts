@@ -111,23 +111,29 @@ export class UsersService {
     // Hash password using bcrypt
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-    // Generate verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const tokenExpiry = new Date();
-    tokenExpiry.setHours(tokenExpiry.getHours() + 24); // 24 hours expiry
+    // Validate organization exists
+    if (!createUserDto.orgId) {
+      throw new BadRequestException('Organization ID is required');
+    }
 
-    // Create user with PENDING status, emailVerified = false, mustChangePassword = true
+    const org = await this.prisma.organization.findUnique({
+      where: { id: createUserDto.orgId },
+    });
+
+    if (!org) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    // Create user with INACTIVE status, mustChangePassword = true
     const user = await this.prisma.user.create({
       data: {
         name: createUserDto.name,
         email: createUserDto.email,
         password: hashedPassword,
+        orgId: createUserDto.orgId,
         roleId: createUserDto.roleId,
         teamId: createUserDto.teamId,
-        status: UserStatus.PENDING,
-        emailVerified: false,
-        verificationToken,
-        tokenExpiry,
+        status: UserStatus.INACTIVE,
         mustChangePassword: true,
       },
       include: {
@@ -136,17 +142,14 @@ export class UsersService {
       },
     });
 
-    // Send verification email with temporary password
+    // Send email with temporary password (no verification needed in new schema)
     try {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       await this.emailService.sendVerificationEmailWithPassword(
         user.email,
         user.name,
-        verificationToken,
+        '', // No verification token needed
         tempPassword,
-      );
-      console.log(
-        `✅ Verification email with password sent successfully to ${user.email}`,
       );
     } catch (error: unknown) {
       // Log error but don't fail user creation
@@ -156,7 +159,7 @@ export class UsersService {
         error && typeof error === 'object' && 'code' in error
           ? String(error.code)
           : 'N/A';
-      console.error('❌ Failed to send verification email:', errorMessage);
+      console.error('❌ Failed to send password email:', errorMessage);
       console.error(
         'Error details:',
         JSON.stringify({
@@ -165,7 +168,6 @@ export class UsersService {
           errorCode,
         }),
       );
-      // Optionally, you could delete the user here if email sending is critical
     }
 
     // Return user response WITHOUT password
@@ -381,7 +383,6 @@ export class UsersService {
       name: user.name,
       email: user.email,
       status: user.status,
-      emailVerified: user.emailVerified,
       mustChangePassword: user.mustChangePassword,
       roleId: user.roleId,
       teamId: user.teamId,

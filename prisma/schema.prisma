@@ -7,10 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ------------------ ENUMS ------------------
+///////////////////////////////////////////////////////////
+// ENUMS
+///////////////////////////////////////////////////////////
 
 enum UserStatus {
-  PENDING
   ACTIVE
   INACTIVE
   BANNED
@@ -22,12 +23,24 @@ enum ShopStatus {
   SUSPENDED
 }
 
-enum IdeaStatus {
-  DRAFT
-  APPROVED
-  REJECTED
-  IN_PROGRESS
-  COMPLETED
+enum PlatformStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum TaskColumn {
+  NEW_IDEA
+  CHECK_DESIGN
+  CHECK_CONTENT
+  DONE_IDEA
+  FIX_DESIGN
+  DONE
+}
+
+enum TaskAssigneeType {
+  DESIGNER
+  CONTENT
 }
 
 enum DesignStatus {
@@ -35,6 +48,37 @@ enum DesignStatus {
   REVIEWING
   APPROVED
   REJECTED
+}
+
+enum ContentStatus {
+  NEW
+  FIX_CONTENT
+  DONE_CONTENT
+  LISTED
+}
+
+enum EntityType {
+  BOARD
+  TASK
+  DESIGN
+  FOLDER
+  CONTENT
+}
+
+enum FilePurpose {
+  REFERENCE
+  DESIGN_SOURCE
+  DESIGN_EXPORT
+  FINAL
+  CONTENT_ASSET
+}
+
+enum FileType {
+  PSD
+  AI
+  JPG
+  PNG
+  SVG
 }
 
 enum OrderStatus {
@@ -48,12 +92,6 @@ enum OrderStatus {
   REFUNDED
 }
 
-enum PlatformStatus {
-  ACTIVE
-  INACTIVE
-  ERROR
-}
-
 enum ProductionJobStatus {
   PENDING
   ASSIGNED
@@ -62,287 +100,610 @@ enum ProductionJobStatus {
   FAILED
 }
 
-// ------------------ USERS ------------------
+///////////////////////////////////////////////////////////
+// ORG / AUTH / RBAC
+///////////////////////////////////////////////////////////
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  shops           Shop[]
+  accounts        Account[]
+  boards          Board[]
+  tasks           Task[]
+  taskAssignees   TaskAssignee[]
+  designs         Design[]
+  designFolders   DesignFolder[]
+  contents        Content[]
+  files           File[]
+  entityFiles     EntityFile[]
+  comments        Comment[]
+  logs            ActivityLog[]
+  products        Product[]
+  platformListings PlatformListing[]
+  orders          Order[]
+  orderItems      OrderItem[]
+  suppliers       Supplier[]
+  productionJobs  ProductionJob[]
+}
 
 model User {
   id                 String     @id @default(uuid())
+  orgId              String
   name               String
   email              String     @unique
   password           String
-  status             UserStatus @default(PENDING)
-  emailVerified      Boolean    @default(false)
-  verificationToken  String?    @unique
-  tokenExpiry        DateTime?
-  mustChangePassword Boolean    @default(true)
+  status             UserStatus @default(ACTIVE)
+  mustChangePassword Boolean    @default(false)
+
   roleId             String
   teamId             String?
+
   deletedAt          DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
-  role Role  @relation(fields: [roleId], references: [id])
-  team Team? @relation(fields: [teamId], references: [id])
+  org                Organization @relation(fields: [orgId], references: [id])
+  role               Role         @relation(fields: [roleId], references: [id])
+  team               Team?        @relation(fields: [teamId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdBoards       Board[]  @relation("BoardsCreatedBy")
+  assignedDesignBoards Board[] @relation("BoardsAssigneeDesigner")
 
-  @@map("users")
+  createdTasks        Task[]   @relation("TasksCreatedBy")
+  approvedDesigns     Design[] @relation("DesignsApprovedBy")
+  createdDesigns      Design[] @relation("DesignsCreatedBy")
+
+  createdContents     Content[] @relation("ContentsCreatedBy")
+
+  uploadedFiles       File[]    @relation("FilesUploadedBy")
+  createdEntityFiles  EntityFile[] @relation("EntityFilesCreatedBy")
+
+  comments            Comment[] @relation("CommentsCreatedBy")
+  logs                ActivityLog[] @relation("LogsActor")
+  taskAssignees       TaskAssignee[]
+  createdDesignFolders DesignFolder[]
 }
 
 model Role {
-  id          String           @id @default(uuid())
-  name        String           @unique
+  id          String   @id @default(uuid())
+  name        String   @unique // seed: superAdmin, admin, design, content, supplier
   description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   users       User[]
   permissions RolePermission[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("roles")
 }
 
 model Permission {
-  id    String           @id @default(uuid())
-  name  String           @unique
-  roles RolePermission[]
+  id   String @id @default(uuid())
+  name String @unique
 
-  @@map("permissions")
+  roles RolePermission[]
 }
 
 model RolePermission {
   roleId       String
   permissionId String
 
-  role       Role       @relation(fields: [roleId], references: [id])
-  permission Permission @relation(fields: [permissionId], references: [id])
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
 
   @@id([roleId, permissionId])
-  @@map("role_permissions")
 }
 
 model Team {
-  id    String @id @default(uuid())
-  name  String @unique
-  users User[]
-
+  id        String   @id @default(uuid())
+  name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("teams")
+  users     User[]
 }
 
-// ------------------ SHOP / PLATFORM ------------------
+///////////////////////////////////////////////////////////
+// SHOPS / PLATFORMS / ACCOUNTS (OAuth connections)
+///////////////////////////////////////////////////////////
 
 model Shop {
   id        String     @id @default(uuid())
+  orgId     String
   name      String
   code      String     @unique
   status    ShopStatus @default(ACTIVE)
+
   deletedAt DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
-  accounts Account[]
-  products Product[]
-  contents Content[]
-  orders   Order[]
+  org       Organization @relation(fields: [orgId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("shops")
-}
-
-model Account {
-  id        String    @id @default(uuid())
-  shopId    String
-  name      String?
-  deletedAt DateTime?
-
-  shop      Shop              @relation(fields: [shopId], references: [id])
-  platforms AccountPlatform[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("accounts")
+  accounts  Account[]
+  products  Product[]
+  boards    Board[]
+  contents  Content[]
 }
 
 model Platform {
-  id               String            @id @default(uuid())
-  code             String            @unique
-  name             String
-  accountPlatforms AccountPlatform[]
-  orders           Order[]
+  id   String @id @default(uuid())
+  code String @unique // ETSY, AMAZON, SHOPEE...
+  name String
 
-  @@map("platforms")
+  accounts Account[]
 }
 
-model AccountPlatform {
-  id              String         @id @default(uuid())
-  accountId       String
-  platformId      String
+model Account {
+  id            String         @id @default(uuid())
+  orgId         String
+  shopId        String
+  platformId    String
+  status        PlatformStatus @default(ACTIVE)
+
+  // OAuth credential - store ENCRYPTED JSON (access_token/refresh_token/expires_at/scopes...)
+  authEncrypted String         @db.Text
+  tokenExpiresAt DateTime?
+  scopes        String?
   externalStoreId String?
-  status          PlatformStatus @default(ACTIVE)
-  deletedAt       DateTime?
+  displayName   String?
+  config        Json?
 
-  account  Account           @relation(fields: [accountId], references: [id])
-  platform Platform          @relation(fields: [platformId], references: [id])
-  listings PlatformListing[]
+  deletedAt     DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  org           Organization @relation(fields: [orgId], references: [id])
+  shop          Shop         @relation(fields: [shopId], references: [id])
+  platform      Platform     @relation(fields: [platformId], references: [id])
 
-  @@unique([accountId, platformId, externalStoreId])
-  @@map("account_platforms")
+  listings      PlatformListing[]
+  orders        Order[]
+  contents      Content[]
+
+  // per your rule: 1 shop <-> 1 account per platform
+  @@unique([shopId, platformId])
+  @@index([orgId, createdAt])
+  @@index([shopId, deletedAt])
 }
 
-// ------------------ LISTINGS ------------------
+///////////////////////////////////////////////////////////
+// KANBAN: BOARDS / TASKS / DESIGNS / FOLDERS
+///////////////////////////////////////////////////////////
 
-model PlatformListing {
-  id                String    @id @default(uuid())
-  accountPlatformId String
-  designId          String?
-  contentId         String
-  platformListingId String
-  deletedAt         DateTime?
+model Board {
+  id                 String   @id @default(uuid())
+  orgId              String
+  shopId             String?
 
-  accountPlatform AccountPlatform @relation(fields: [accountPlatformId], references: [id])
-  content         Content         @relation(fields: [contentId], references: [id])
+  title              String
+  description        String?
+  note               String?
+  assigneeDesignerId String?
+  dueDate            DateTime?
+  priority           Int?
 
-  variants   PlatformListingVariant[]
-  orderItems OrderItem[]
+  createdById        String
+  deletedAt          DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  @@unique([accountPlatformId, platformListingId])
-  @@map("platform_listings")
+  org                Organization @relation(fields: [orgId], references: [id])
+  shop               Shop?        @relation(fields: [shopId], references: [id])
+
+  createdBy          User         @relation("BoardsCreatedBy", fields: [createdById], references: [id])
+  assigneeDesigner   User?        @relation("BoardsAssigneeDesigner", fields: [assigneeDesignerId], references: [id])
+
+  tasks              Task[]
+  designs            Design[]
+  designFolders      DesignFolder[]
+  contents           Content[]
+
+  @@index([orgId, createdAt])
+  @@index([shopId, createdAt])
+  @@index([orgId, deletedAt])
 }
 
-model PlatformListingVariant {
-  id                String  @id @default(uuid())
-  platformListingId String
-  variantSku        String?
-  attributes        Json?
+model Task {
+  id          String     @id @default(uuid())
+  orgId       String
+  boardId     String
 
-  listing PlatformListing @relation(fields: [platformListingId], references: [id])
+  column      TaskColumn
+  positionKey String     @db.VarChar(64)
 
-  @@map("platform_listing_variants")
+  title       String
+  description String?
+  note        String?
+
+  designId    String?
+  contentId   String?
+
+  createdById String
+  deletedAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  org         Organization @relation(fields: [orgId], references: [id])
+  board       Board        @relation(fields: [boardId], references: [id])
+  createdBy   User         @relation("TasksCreatedBy", fields: [createdById], references: [id])
+
+  design      Design?      @relation(fields: [designId], references: [id])
+  content     Content?     @relation(fields: [contentId], references: [id])
+
+  assignees   TaskAssignee[]
+
+  @@index([boardId, column, positionKey]) // Trello-like ordering
+  @@index([boardId, deletedAt])
+  @@index([createdById, createdAt])
 }
 
-// ------------------ PRODUCTS ------------------
+model TaskAssignee {
+  id        String            @id @default(uuid())
+  orgId     String
+  taskId    String
+  userId    String
+  type      TaskAssigneeType
+  createdAt DateTime          @default(now())
 
-model Product {
-  id        String    @id @default(uuid())
-  shopId    String
-  name      String
-  sku       String
-  deletedAt DateTime?
+  org       Organization @relation(fields: [orgId], references: [id])
+  task      Task         @relation(fields: [taskId], references: [id])
+  user      User         @relation(fields: [userId], references: [id])
 
-  shop       Shop             @relation(fields: [shopId], references: [id])
-  variants   ProductVariant[]
-  orderItems OrderItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([shopId, sku])
-  @@map("products")
-}
-
-model ProductVariant {
-  id         String  @id @default(uuid())
-  productId  String
-  variantSku String
-  size       String?
-  color      String?
-
-  product Product @relation(fields: [productId], references: [id])
-
-  @@map("product_variants")
-}
-
-// ------------------ CONTENT / DESIGN ------------------
-
-model Content {
-  id        String    @id @default(uuid())
-  shopId    String
-  designId  String?
-  productId String?
-  deletedAt DateTime?
-
-  shop     Shop              @relation(fields: [shopId], references: [id])
-  design   Design?           @relation(fields: [designId], references: [id])
-  listings PlatformListing[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("contents")
+  @@unique([taskId, userId, type])
+  @@index([userId, type])
 }
 
 model Design {
-  id        String    @id @default(uuid())
-  ideaId    String?
-  userId    String
-  version   Int       @default(1)
-  deletedAt DateTime?
+  id           String       @id @default(uuid())
+  orgId        String
+  boardId      String
+  status       DesignStatus @default(PENDING)
 
-  contents   Content[]
-  orderItems OrderItem[]
+  rejectReason String?
+  approvedById String?
+  approvedAt   DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdById  String
+  deletedAt    DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  @@map("designs")
+  org          Organization @relation(fields: [orgId], references: [id])
+  board        Board        @relation(fields: [boardId], references: [id])
+
+  createdBy    User         @relation("DesignsCreatedBy", fields: [createdById], references: [id])
+  approvedBy   User?        @relation("DesignsApprovedBy", fields: [approvedById], references: [id])
+
+  tasks        Task[]
+  listings     PlatformListing[]
+  orderItems   OrderItem[]
+
+  @@index([boardId, status, createdAt])
+  @@index([boardId, deletedAt])
 }
 
-// ------------------ ORDERS ------------------
+model DesignFolder {
+  id          String   @id @default(uuid())
+  orgId       String
+  boardId     String
+  parentId    String?
+  name        String
 
-model Order {
-  id                String    @id @default(uuid())
-  shopId            String
-  accountPlatformId String?
-  platformId        String?
-  platformOrderId   String?
-  deletedAt         DateTime?
+  createdById String
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  shop     Shop        @relation(fields: [shopId], references: [id])
-  platform Platform?   @relation(fields: [platformId], references: [id])
-  items    OrderItem[]
+  org         Organization @relation(fields: [orgId], references: [id])
+  board       Board        @relation(fields: [boardId], references: [id])
 
+  parent      DesignFolder? @relation("FolderTree", fields: [parentId], references: [id])
+  children    DesignFolder[] @relation("FolderTree")
+
+  createdBy   User         @relation(fields: [createdById], references: [id])
+
+  @@index([boardId, parentId, deletedAt])
+}
+
+///////////////////////////////////////////////////////////
+// CONTENT (separate)
+///////////////////////////////////////////////////////////
+
+model Content {
+  id          String        @id @default(uuid())
+  orgId       String
+  boardId     String
+  shopId      String
+  accountId   String?
+
+  status      ContentStatus @default(NEW)
+  title       String?
+  description String?
+  meta        Json?
+  tags        Json?
+
+  createdById String
+  deletedAt   DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  org         Organization @relation(fields: [orgId], references: [id])
+  board       Board        @relation(fields: [boardId], references: [id])
+  shop        Shop         @relation(fields: [shopId], references: [id])
+  account     Account?     @relation(fields: [accountId], references: [id])
+
+  createdBy   User         @relation("ContentsCreatedBy", fields: [createdById], references: [id])
+
+  tasks       Task[]
+  listings    PlatformListing[]
+  orderItems  OrderItem[]
+
+  @@index([boardId, status, createdAt])
+  @@index([shopId, createdAt])
+}
+
+///////////////////////////////////////////////////////////
+// FILES (normalized) + ATTACHMENTS + COMMENTS + LOGS
+///////////////////////////////////////////////////////////
+
+model File {
+  id           String   @id @default(uuid())
+  orgId         String
+
+  originalName  String
+  fileType      FileType
+  extension     String
+  mimeType      String?
+  size          BigInt
+
+  storageKey    String   @unique
+  checksum      String?
+
+  uploadedById  String
+  createdAt     DateTime @default(now())
+
+  org           Organization @relation(fields: [orgId], references: [id])
+  uploadedBy    User         @relation("FilesUploadedBy", fields: [uploadedById], references: [id])
+
+  entityFiles   EntityFile[]
+
+  @@index([orgId, createdAt])
+}
+
+model EntityFile {
+  id          String     @id @default(uuid())
+  orgId       String
+  entityType  EntityType
+  entityId    String
+  fileId      String
+  purpose     FilePurpose
+
+  createdById String
+  deletedAt   DateTime?
+  createdAt   DateTime   @default(now())
+
+  org         Organization @relation(fields: [orgId], references: [id])
+  file        File         @relation(fields: [fileId], references: [id])
+  createdBy   User         @relation("EntityFilesCreatedBy", fields: [createdById], references: [id])
+
+  @@index([entityType, entityId, deletedAt])
+  @@index([entityType, entityId, purpose, deletedAt]) // approve design fast
+  @@index([fileId])
+}
+
+model Comment {
+  id          String    @id @default(uuid())
+  orgId       String
+  entityType  EntityType
+  entityId    String
+  body        String
+
+  createdById String
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  org         Organization @relation(fields: [orgId], references: [id])
+  createdBy   User         @relation("CommentsCreatedBy", fields: [createdById], references: [id])
+
+  @@index([entityType, entityId, createdAt])
+}
+
+model ActivityLog {
+  id         String    @id @default(uuid())
+  orgId      String
+  actorId    String
+
+  action     String
+  entityType EntityType
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+
+  org        Organization @relation(fields: [orgId], references: [id])
+  actor      User         @relation("LogsActor", fields: [actorId], references: [id])
+
+  @@index([entityType, entityId, createdAt])
+  @@index([orgId, createdAt])
+}
+
+///////////////////////////////////////////////////////////
+// PRODUCTS / LISTINGS / ORDERS / PRODUCTION (corrected)
+///////////////////////////////////////////////////////////
+
+model Product {
+  id        String   @id @default(uuid())
+  orgId     String
+  shopId    String
+
+  name      String
+  sku       String
+
+  deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("orders")
+  org       Organization @relation(fields: [orgId], references: [id])
+  shop      Shop         @relation(fields: [shopId], references: [id])
+
+  variants  ProductVariant[]
+  orderItems OrderItem[]
+  listings  PlatformListing[]
+
+  @@unique([shopId, sku])
+  @@index([orgId, createdAt])
+  @@index([shopId, deletedAt])
+}
+
+model ProductVariant {
+  id         String @id @default(uuid())
+  productId  String
+  variantSku String
+  attributes Json?
+
+  product    Product @relation(fields: [productId], references: [id])
+  orderItems OrderItem[]
+
+  @@unique([productId, variantSku])
+  @@index([productId])
+}
+
+model PlatformListing {
+  id                String   @id @default(uuid())
+  orgId              String
+  accountId          String
+
+  productId          String?
+  designId           String?
+  contentId          String?
+
+  platformListingKey String // external listing id on platform
+  deletedAt          DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  org                Organization @relation(fields: [orgId], references: [id])
+  account            Account      @relation(fields: [accountId], references: [id])
+
+  product            Product?     @relation(fields: [productId], references: [id])
+  design             Design?      @relation(fields: [designId], references: [id])
+  content            Content?     @relation(fields: [contentId], references: [id])
+
+  variants           PlatformListingVariant[]
+  orderItems         OrderItem[]
+
+  @@unique([accountId, platformListingKey])
+  @@index([accountId, deletedAt])
+  @@index([orgId, createdAt])
+}
+
+model PlatformListingVariant {
+  id                String @id @default(uuid())
+  platformListingId String
+  variantSku        String
+  attributes        Json?
+
+  listing           PlatformListing @relation(fields: [platformListingId], references: [id])
+
+  @@index([platformListingId])
+}
+
+model Order {
+  id              String     @id @default(uuid())
+  orgId            String
+  accountId        String
+
+  platformOrderId  String
+  status           OrderStatus @default(PENDING)
+  rawPayload       Json?
+
+  deletedAt        DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  org              Organization @relation(fields: [orgId], references: [id])
+  account          Account      @relation(fields: [accountId], references: [id])
+
+  items            OrderItem[]
+
+  @@unique([accountId, platformOrderId])
+  @@index([accountId, createdAt])
+  @@index([orgId, createdAt])
 }
 
 model OrderItem {
-  id                String    @id @default(uuid())
+  id               String   @id @default(uuid())
+  orgId             String
   orderId           String
+
   productId         String?
   productVariantId  String?
+
   designId          String?
   contentId         String?
   platformListingId String?
+
+  quantity          Int      @default(1)
+  snapshot          Json?
+
   deletedAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  order   Order            @relation(fields: [orderId], references: [id])
-  product Product?         @relation(fields: [productId], references: [id])
-  design  Design?          @relation(fields: [designId], references: [id])
-  listing PlatformListing? @relation(fields: [platformListingId], references: [id])
+  org               Organization @relation(fields: [orgId], references: [id])
+  order             Order        @relation(fields: [orderId], references: [id])
 
-  @@map("order_items")
+  product           Product?      @relation(fields: [productId], references: [id])
+  productVariant    ProductVariant? @relation(fields: [productVariantId], references: [id])
+
+  design            Design?       @relation(fields: [designId], references: [id])
+  content           Content?      @relation(fields: [contentId], references: [id])
+  platformListing   PlatformListing? @relation(fields: [platformListingId], references: [id])
+
+  productionJobs    ProductionJob[]
+
+  @@index([orderId])
+  @@index([platformListingId])
+  @@index([orgId, createdAt])
 }
 
-// ------------------ PRODUCTION JOB ------------------
+model Supplier {
+  id           String @id @default(uuid())
+  orgId         String
+
+  name         String
+  externalCode String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org          Organization @relation(fields: [orgId], references: [id])
+  jobs         ProductionJob[]
+
+  @@index([orgId, createdAt])
+}
 
 model ProductionJob {
-  id            String              @id @default(uuid())
-  orderItemId   String
-  supplierId    String?
+  id           String              @id @default(uuid())
+  orgId         String
+  orderItemId  String
+  supplierId   String
   externalJobId String?
-  status        ProductionJobStatus @default(PENDING)
-  notes         String?
-  deletedAt     DateTime?
+  status       ProductionJobStatus @default(PENDING)
+  notes        String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  deletedAt    DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
-  @@map("production_jobs")
+  org          Organization @relation(fields: [orgId], references: [id])
+  orderItem    OrderItem    @relation(fields: [orderItemId], references: [id])
+  supplier     Supplier     @relation(fields: [supplierId], references: [id])
+
+  @@index([orderItemId])
+  @@index([supplierId])
+  @@index([orgId, createdAt])
 }
