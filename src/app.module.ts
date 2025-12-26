@@ -17,6 +17,7 @@ import { TasksModule } from './tasks/tasks.module';
 import { DesignFoldersModule } from './design-folders/design-folders.module';
 import { ContentsModule } from './contents/contents.module';
 import { CommentsModule } from './comments/comments.module';
+import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -38,6 +39,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     DesignFoldersModule,
     ContentsModule,
     CommentsModule,
+    ActivityLogsModule,
   ],
   controllers: [AppController],
   providers: [
