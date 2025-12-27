@@ -2,6 +2,7 @@
 /dist
 /node_modules
 /build
+/cursor
 
 # Logs
 logs
@@ -54,3 +55,64 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Prisma
+prisma/migrations/**/migration_lock.toml
+
+# Debug
+*.heapsnapshot
+*.cpuprofile
+
+# Cache
+.cache
+*.cache
+.eslintcache
+.prettiercache
+
+# Package manager locks (keep only one - pnpm-lock.yaml)
+package-lock.json
+yarn.lock
+
+# TypeScript
+*.tsbuildinfo
+
+# Uploads & Storage
+/uploads
+/storage
+/public/uploads
+
+# Secrets & Certificates
+*.pem
+*.key
+*.crt
+*.p12
+
+# Docker
+docker-compose.override.yml
+
+# Backup files
+*.bak
+*.backup
+*.swp
+*~
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.fuse_hidden*
+.Trash-*
+
+# Test artifacts
+/test-results
+/playwright-report
+/.playwright
+
+# Misc
+*.gz
+*.zip
+*.tar
+*.rar

@@ -2,6 +2,7 @@ export type TokenType = 'access' | 'temp';
 
 export interface JwtPayload {
   sub: string; // userId
+  orgId: string; // organization id
   roleId: string;
   teamId?: string;
   email: string;

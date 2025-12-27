@@ -35,6 +35,18 @@ export class UserInfoDto {
   mustChangePassword: boolean;
 
   @ApiProperty({
+    description: 'User organization information',
+    example: {
+      id: '123e4567-e89b-12d3-a456-426614174003',
+      name: 'My Organization',
+    },
+  })
+  org: {
+    id: string;
+    name: string;
+  };
+
+  @ApiProperty({
     description: 'User role information',
     example: { id: '123e4567-e89b-12d3-a456-426614174001', name: 'ADMIN' },
   })

@@ -32,6 +32,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { email: loginDto.email },
       include: {
+        org: true,
         role: true,
         team: true,
       },
@@ -62,6 +63,7 @@ export class AuthService {
       // Issue TEMPORARY token (short-lived, 5-10 minutes) for password change only
       const tempPayload: JwtPayload = {
         sub: user.id,
+        orgId: user.orgId,
         roleId: user.roleId,
         teamId: user.teamId || undefined,
         email: user.email,
@@ -80,6 +82,10 @@ export class AuthService {
         email: user.email,
         status: user.status,
         mustChangePassword: user.mustChangePassword,
+        org: {
+          id: user.org.id,
+          name: user.org.name,
+        },
         role: {
           id: user.role.id,
           name: user.role.name,
@@ -108,6 +114,7 @@ export class AuthService {
     // Generate access tokens (normal authenticated user)
     const payload: JwtPayload = {
       sub: user.id,
+      orgId: user.orgId,
       roleId: user.roleId,
       teamId: user.teamId || undefined,
       email: user.email,
@@ -137,6 +144,10 @@ export class AuthService {
       email: user.email,
       status: user.status,
       mustChangePassword: user.mustChangePassword,
+      org: {
+        id: user.org.id,
+        name: user.org.name,
+      },
       role: {
         id: user.role.id,
         name: user.role.name,
@@ -182,6 +193,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
+        org: true,
         role: true,
         team: true,
       },
@@ -220,6 +232,7 @@ export class AuthService {
         status: UserStatus.ACTIVE,
       },
       include: {
+        org: true,
         role: true,
         team: true,
       },
@@ -228,6 +241,7 @@ export class AuthService {
     // Generate access tokens (after successful password change)
     const payload: JwtPayload = {
       sub: updatedUser.id,
+      orgId: updatedUser.orgId,
       roleId: updatedUser.roleId,
       teamId: updatedUser.teamId || undefined,
       email: updatedUser.email,
@@ -257,6 +271,10 @@ export class AuthService {
       email: updatedUser.email,
       status: updatedUser.status,
       mustChangePassword: updatedUser.mustChangePassword,
+      org: {
+        id: updatedUser.org.id,
+        name: updatedUser.org.name,
+      },
       role: {
         id: updatedUser.role.id,
         name: updatedUser.role.name,
