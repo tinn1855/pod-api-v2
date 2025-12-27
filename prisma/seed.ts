@@ -171,30 +171,48 @@ async function main() {
   // Hash password outside transaction to avoid timeout
   const adminEmail = process.env.ADMIN_EMAIL ?? 'superadmin@gmail.com';
   const adminPassword = process.env.ADMIN_PASSWORD ?? '12345678';
+  const adminName = process.env.ADMIN_NAME ?? 'Super Admin';
   validatePasswordStrength(adminPassword);
   const hashedPassword = await bcrypt.hash(adminPassword, SALT_ROUNDS);
 
   await prisma.$transaction(
     async (tx) => {
-      /* ---------- ORGANIZATION ---------- */
-      let org = await tx.organization.findFirst({
-        where: { name: 'Default Organization' },
-      });
-      if (!org) {
-        org = await tx.organization.create({
-          data: { name: 'Default Organization' },
-        });
-      }
+      /* ---------- CLEAN ALL DATA ---------- */
+      console.log('🗑️  Cleaning all existing data...');
 
-      /* ---------- TEAM (optional) ---------- */
-      let team = await tx.team.findFirst({
-        where: { name: 'Default Team' },
+      // Delete in order of dependencies (child tables first)
+      await tx.activityLog.deleteMany({});
+      await tx.comment.deleteMany({});
+      await tx.taskAssignee.deleteMany({});
+      await tx.task.deleteMany({});
+      await tx.content.deleteMany({});
+      await tx.designFolder.deleteMany({});
+      await tx.design.deleteMany({});
+      await tx.entityFile.deleteMany({});
+      await tx.file.deleteMany({});
+      await tx.board.deleteMany({});
+      await tx.account.deleteMany({});
+      await tx.shop.deleteMany({});
+      await tx.user.deleteMany({});
+      await tx.rolePermission.deleteMany({});
+      await tx.role.deleteMany({});
+      await tx.permission.deleteMany({});
+      await tx.team.deleteMany({});
+      await tx.organization.deleteMany({});
+
+      console.log('✅ All data cleaned\n');
+
+      /* ---------- ORGANIZATION ---------- */
+      const org = await tx.organization.create({
+        data: { name: 'Default Organization' },
       });
-      if (!team) {
-        team = await tx.team.create({
-          data: { name: 'Default Team' },
-        });
-      }
+      console.log(`📁 Created organization: ${org.name}`);
+
+      /* ---------- TEAM ---------- */
+      const team = await tx.team.create({
+        data: { name: 'Default Team' },
+      });
+      console.log(`👥 Created team: ${team.name}`);
 
       /* ---------- PERMISSIONS ---------- */
       await tx.permission.createMany({
@@ -237,25 +255,25 @@ async function main() {
         });
       }
 
-      /* ---------- SUPER ADMIN ---------- */
+      /* ---------- SUPER ADMIN (Only ONE allowed) ---------- */
       const superAdminRoleId = roleMap.get('SUPER_ADMIN');
 
       if (!superAdminRoleId) {
         throw new Error('SUPER_ADMIN role not found');
       }
 
-      await tx.user.upsert({
-        where: { email: adminEmail },
-        update: {
-          password: hashedPassword,
-          status: UserStatus.ACTIVE,
-          mustChangePassword: false,
-          roleId: superAdminRoleId,
-          orgId: org.id,
-          teamId: team.id,
-        },
-        create: {
-          name: 'Super Admin',
+      // Validate: Only 1 super admin is allowed
+      const existingSuperAdmins = await tx.user.count({
+        where: { roleId: superAdminRoleId },
+      });
+
+      if (existingSuperAdmins > 0) {
+        throw new Error('❌ Only ONE Super Admin is allowed in the system');
+      }
+
+      const superAdmin = await tx.user.create({
+        data: {
+          name: adminName,
           email: adminEmail,
           password: hashedPassword,
           status: UserStatus.ACTIVE,
@@ -265,6 +283,8 @@ async function main() {
           teamId: team.id,
         },
       });
+
+      console.log(`👑 Created Super Admin: ${superAdmin.email}`);
     },
     {
       timeout: 30000, // 30 seconds
