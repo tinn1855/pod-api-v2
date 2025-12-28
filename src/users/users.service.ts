@@ -7,7 +7,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateUserDto } from './dto/create-user.dto';
+import { CreateUserInternalDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
 import { UserResponseDto, UserListResponseDto } from './dto/user-response.dto';
@@ -21,7 +21,7 @@ export class UsersService {
     private emailService: EmailService,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<UserResponseDto> {
+  async create(createUserDto: CreateUserInternalDto): Promise<UserResponseDto> {
     // Check if email already exists
     const existingUser = await this.prisma.user.findUnique({
       where: { email: createUserDto.email },
@@ -31,13 +31,25 @@ export class UsersService {
       throw new ConflictException('Email already exists');
     }
 
-    // Validate role exists
-    const role = await this.prisma.role.findUnique({
-      where: { id: createUserDto.roleId },
-    });
-
-    if (!role) {
-      throw new NotFoundException('Role not found');
+    // Get role - if roleId not provided, default to SELLER
+    let role: { id: string; name: string } | null;
+    if (createUserDto.roleId) {
+      role = await this.prisma.role.findUnique({
+        where: { id: createUserDto.roleId },
+      });
+      if (!role) {
+        throw new NotFoundException('Role not found');
+      }
+    } else {
+      // Default to SELLER role
+      role = await this.prisma.role.findFirst({
+        where: { name: 'SELLER' },
+      });
+      if (!role) {
+        throw new NotFoundException(
+          'Default SELLER role not found. Please run database seed.',
+        );
+      }
     }
 
     // Check if trying to create Super Admin
@@ -73,43 +85,43 @@ export class UsersService {
     }
 
     // Generate cryptographically secure random temporary password
-    // Password must meet strength requirements: uppercase, lowercase, number, special char, min 8 chars
+    // Security: No HTML tags, scripts, or dangerous characters
+    // Password must be min 8 chars and safe from XSS/injection attacks
     const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const lowercase = 'abcdefghijklmnopqrstuvwxyz';
     const numbers = '0123456789';
-    const special = '!@#$%^&*(),.?":{}|<>';
+    const special = '!@#$%^&*()_+-=[]|'; // Safe special chars only
     const allChars = uppercase + lowercase + numbers + special;
 
-    // Generate password with at least one of each required type using crypto.randomBytes
+    // Validation regex: No HTML tags, scripts, or dangerous characters
+    // Blocks: < > & ; / \ ' " ` and script-related patterns
+    const dangerousPatternRegex =
+      /[<>&;/\\'"`]|script|javascript|onerror|onclick|onload|eval|expression/i;
+
     let tempPassword = '';
-    // Use crypto.randomBytes for cryptographically secure random selection
-    const randomBytes = crypto.randomBytes(4);
-    tempPassword += uppercase[randomBytes[0] % uppercase.length];
-    tempPassword += lowercase[randomBytes[1] % lowercase.length];
-    tempPassword += numbers[randomBytes[2] % numbers.length];
-    tempPassword += special[randomBytes[3] % special.length];
+    // Generate random password until it's safe
+    do {
+      tempPassword = '';
+      const passwordLength = 10 + (crypto.randomBytes(1)[0] % 3); // 10-12 chars
+      const randomBytes = crypto.randomBytes(passwordLength);
 
-    // Fill remaining length (minimum 8, so 4 more chars) using crypto.randomBytes
-    const remainingLength = 16 - tempPassword.length;
-    const additionalBytes = crypto.randomBytes(remainingLength);
-    for (let i = 0; i < remainingLength; i++) {
-      tempPassword += allChars[additionalBytes[i] % allChars.length];
-    }
-
-    // Shuffle the password using Fisher-Yates algorithm with crypto.randomBytes
-    const passwordArray = tempPassword.split('');
-    for (let i = passwordArray.length - 1; i > 0; i--) {
-      const randomBytesForShuffle = crypto.randomBytes(1);
-      const j = randomBytesForShuffle[0] % (i + 1);
-      [passwordArray[i], passwordArray[j]] = [
-        passwordArray[j],
-        passwordArray[i],
-      ];
-    }
-    tempPassword = passwordArray.join('');
+      for (let i = 0; i < passwordLength; i++) {
+        tempPassword += allChars[randomBytes[i] % allChars.length];
+      }
+    } while (
+      dangerousPatternRegex.test(tempPassword) ||
+      tempPassword.length < 8
+    );
 
     // Hash password using bcrypt
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+    // Generate verification token with 60 minutes expiration
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenExpiresAt = new Date();
+    verificationTokenExpiresAt.setMinutes(
+      verificationTokenExpiresAt.getMinutes() + 60,
+    );
 
     // Validate organization exists
     if (!createUserDto.orgId) {
@@ -131,10 +143,12 @@ export class UsersService {
         email: createUserDto.email,
         password: hashedPassword,
         orgId: createUserDto.orgId,
-        roleId: createUserDto.roleId,
+        roleId: role.id, // Use role.id from validated/default role
         teamId: createUserDto.teamId,
         status: UserStatus.INACTIVE,
         mustChangePassword: true,
+        verificationToken,
+        verificationTokenExpiresAt,
       },
       include: {
         role: true,
@@ -144,11 +158,10 @@ export class UsersService {
 
     // Send email with temporary password (no verification needed in new schema)
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       await this.emailService.sendVerificationEmailWithPassword(
         user.email,
         user.name,
-        '', // No verification token needed
+        verificationToken, // Send verification token
         tempPassword,
       );
     } catch (error: unknown) {
@@ -384,6 +397,7 @@ export class UsersService {
       email: user.email,
       status: user.status,
       mustChangePassword: user.mustChangePassword,
+      verificationToken: (user.verificationToken as string | null) ?? null,
       roleId: user.roleId,
       teamId: user.teamId,
       role: {

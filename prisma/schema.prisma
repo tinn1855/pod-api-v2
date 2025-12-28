@@ -139,6 +139,8 @@ model User {
   password           String
   status             UserStatus @default(ACTIVE)
   mustChangePassword Boolean    @default(false)
+  verificationToken  String?
+  verificationTokenExpiresAt DateTime?
 
   roleId             String
   teamId             String?

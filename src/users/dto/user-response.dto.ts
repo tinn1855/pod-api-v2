@@ -17,6 +17,9 @@ export class UserResponseDto {
   @ApiProperty()
   mustChangePassword: boolean;
 
+  @ApiPropertyOptional({ nullable: true })
+  verificationToken?: string | null;
+
   @ApiProperty()
   roleId: string;
 

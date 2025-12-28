@@ -172,11 +172,52 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
-  // Email verification removed - users are created as ACTIVE by default
-  // This method is kept for backward compatibility but does nothing
-  async verifyEmail(_token: string): Promise<{ message: string }> {
+  /**
+   * Email verification with token expiration check (60 minutes)
+   */
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    // Find user by verification token
+    const user = await this.prisma.user.findFirst({
+      where: {
+        verificationToken: token,
+        deletedAt: null,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    // Check if token has expired (60 minutes from creation)
+    if (
+      !user.verificationTokenExpiresAt ||
+      new Date() > user.verificationTokenExpiresAt
+    ) {
+      throw new BadRequestException(
+        'Verification token has expired. Please request a new verification email.',
+      );
+    }
+
+    // Check if already verified (status is ACTIVE)
+    if (user.status === UserStatus.ACTIVE) {
+      return {
+        message: 'Email already verified. You can now login.',
+      };
+    }
+
+    // Verify user: set status to ACTIVE and clear verification token
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        status: UserStatus.ACTIVE,
+        verificationToken: null,
+        verificationTokenExpiresAt: null,
+      },
+    });
+
     return {
-      message: 'Email verification is no longer required.',
+      message:
+        'Email verified successfully. You can now login with your temporary password.',
     };
   }
 

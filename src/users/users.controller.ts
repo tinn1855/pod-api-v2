@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,7 +18,6 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
-  ApiQuery,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -27,6 +27,7 @@ import { UserResponseDto, UserListResponseDto } from './dto/user-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../common/decorators/permissions.decorator';
+import type { UserRequest } from '../common/interfaces/user-request.interface';
 
 @ApiTags('Users')
 @ApiBearerAuth('JWT-auth')
@@ -40,7 +41,7 @@ export class UsersController {
   @ApiOperation({
     summary: 'Create a new user',
     description:
-      'Create a new user. System automatically generates a secure random temporary password (16 characters, meets strength requirements) and sends it via email along with verification link. Admin provides ONLY: name, email, roleId, teamId. Password field is NOT accepted in request body and NEVER returned in response. User must verify email, then login with temporary password, then change password on first login.',
+      'Create a new user. System automatically generates a secure random temporary password (16 characters, meets strength requirements) and sends it via email along with verification link. Admin provides: name, email, and optionally roleId (defaults to SELLER). Organization is automatically set to current user org. User must verify email, then login with temporary password, then change password on first login.',
   })
   @ApiResponse({
     status: 201,
@@ -49,11 +50,24 @@ export class UsersController {
     type: UserResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid input data' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
-  @ApiResponse({ status: 404, description: 'Not found - Role or team not found' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Insufficient permissions',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not found - Role or team not found',
+  })
   @ApiResponse({ status: 409, description: 'Conflict - Email already exists' })
-  async create(@Body() createUserDto: CreateUserDto): Promise<UserResponseDto> {
-    return this.usersService.create(createUserDto);
+  async create(
+    @Req() req: UserRequest,
+    @Body() createUserDto: CreateUserDto,
+  ): Promise<UserResponseDto> {
+    // Set orgId from current user's organization and pass to service
+    return this.usersService.create({
+      ...createUserDto,
+      orgId: req.user.orgId,
+    });
   }
 
   @Get()

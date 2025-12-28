@@ -11,7 +11,9 @@ import { IsEmailUnique } from '../../common/validators/is-email-unique.validator
 /**
  * DTO for creating a user
  * System automatically generates password and sends it via email
- * Admin provides ONLY: name, email, roleId, teamId
+ * Admin provides: name, email, and optionally roleId
+ * - orgId: defaults to current user's org (only 1 org in system)
+ * - roleId: defaults to SELLER role if not provided
  * Password is NEVER provided by admin - system generates it
  */
 export class CreateUserDto {
@@ -35,21 +37,14 @@ export class CreateUserDto {
   @IsEmailUnique({ message: 'Email already exists' })
   email: string;
 
-  @ApiProperty({
-    description: 'Organization ID (UUID). User will belong to this organization.',
+  @ApiPropertyOptional({
+    description:
+      'Role ID (UUID). User will be assigned this role. Defaults to SELLER role if not provided.',
     example: '926fb2dd-cab5-4390-943a-82c4a39c15ec',
-    required: true,
   })
+  @IsOptional()
   @IsUUID()
-  orgId: string;
-
-  @ApiProperty({
-    description: 'Role ID (UUID). User will be assigned this role.',
-    example: '926fb2dd-cab5-4390-943a-82c4a39c15ec',
-    required: true,
-  })
-  @IsUUID()
-  roleId: string;
+  roleId?: string;
 
   @ApiPropertyOptional({
     description:
@@ -59,4 +54,12 @@ export class CreateUserDto {
   @IsOptional()
   @IsUUID()
   teamId?: string;
+}
+
+/**
+ * Internal DTO used by controller after setting orgId
+ * Not exposed to API
+ */
+export interface CreateUserInternalDto extends CreateUserDto {
+  orgId: string;
 }
