@@ -7,8 +7,10 @@ import { AuthController } from './auth.controller';
 import { AccessTokenStrategy } from './strategies/access-token.strategy';
 import { TempTokenStrategy } from './strategies/temp-token.strategy';
 import { ChangePasswordStrategy } from './strategies/change-password.strategy';
+import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { ChangePasswordGuard } from './guards/change-password.guard';
+import { RefreshTokenGuard } from './guards/refresh-token.guard';
 
 @Module({
   imports: [
@@ -34,8 +36,10 @@ import { ChangePasswordGuard } from './guards/change-password.guard';
     AccessTokenStrategy,
     TempTokenStrategy,
     ChangePasswordStrategy,
+    RefreshTokenStrategy,
     PermissionsGuard,
     ChangePasswordGuard,
+    RefreshTokenGuard,
   ],
   exports: [AuthService, JwtModule, PassportModule, PermissionsGuard],
 })

@@ -1,10 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
+import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
+
+  // Enable cookie parser
+  app.use(cookieParser());
 
   // Enable global validation pipe
   app.useGlobalPipes(
@@ -28,8 +34,14 @@ async function bootstrap() {
     }),
   );
 
-  // Enable CORS
-  app.enableCors();
+  // Enable CORS with credentials
+  const frontendOrigin = configService.get<string>('FRONTEND_ORIGIN');
+  app.enableCors({
+    origin: frontendOrigin || true, // Allow all origins if not specified (dev)
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
 
   // Swagger Configuration
   const config = new DocumentBuilder()

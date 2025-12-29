@@ -6,6 +6,8 @@ import {
   HttpStatus,
   UseGuards,
   Request,
+  Res,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -13,9 +15,12 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import { LoginResponseDto } from './dto/login-response.dto';
 import { LoginRequirePasswordChangeDto } from './dto/login-require-password-change.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -27,7 +32,10 @@ import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Public()
   @Post('login')
@@ -35,13 +43,13 @@ export class AuthController {
   @ApiOperation({
     summary: 'User login',
     description:
-      'Login with email and password. System validates credentials and checks email verification status. If user has mustChangePassword=true, returns requiresPasswordChange response with temporary token (short-lived, 5-10 minutes) for password change only. If mustChangePassword=false, returns normal access token and refresh token. Login is rejected if emailVerified=false.',
+      'Login with email and password. System validates credentials and checks email verification status. If user has mustChangePassword=true, returns requiresPasswordChange response with temporary token (short-lived, 5-10 minutes) for password change only. If mustChangePassword=false, returns access token in JSON and sets refresh token in HttpOnly cookie. Login is rejected if emailVerified=false.',
   })
   @ApiResponse({
     status: 200,
     description:
-      'Login successful - returns access token, refresh token, and user info. This response is returned when mustChangePassword=false.',
-    type: AuthResponseDto,
+      'Login successful - returns access token (short-lived, ~10 minutes) and user info. Access token should be stored in-memory by frontend. Refresh token is automatically set in HttpOnly + Secure + SameSite cookie named "refresh_token" (frontend should NOT store this - browser manages it automatically). This response is returned when mustChangePassword=false.',
+    type: LoginResponseDto,
   })
   @ApiResponse({
     status: 200,
@@ -56,8 +64,81 @@ export class AuthController {
   })
   async login(
     @Body() loginDto: LoginDto,
-  ): Promise<AuthResponseDto | LoginRequirePasswordChangeDto> {
-    return this.authService.login(loginDto);
+    @Request() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LoginResponseDto | LoginRequirePasswordChangeDto> {
+    const userAgent = req.headers?.['user-agent'];
+    const ip =
+      req.headers?.['x-forwarded-for']?.toString() ||
+      (req.socket as any)?.remoteAddress ||
+      req.ip ||
+      'unknown';
+
+    const result = await this.authService.login(loginDto, userAgent, ip);
+
+    // If password change required, return as-is
+    if ('requiresPasswordChange' in result) {
+      return result;
+    }
+
+    // Extract refreshToken and set cookie
+    if ('refreshToken' in result && 'response' in result) {
+      const { refreshToken, response } = result as {
+        refreshToken: string;
+        response: LoginResponseDto;
+      };
+      this.setRefreshTokenCookie(res, refreshToken);
+      return response;
+    }
+
+    return result as LoginResponseDto;
+  }
+
+  /**
+   * Set refresh token as HttpOnly cookie
+   */
+  private setRefreshTokenCookie(res: Response, token: string): void {
+    const cookieSecure =
+      this.configService.get<string>('COOKIE_SECURE') === 'true';
+    const cookieSameSite =
+      (this.configService.get<string>('COOKIE_SAMESITE') as
+        | 'strict'
+        | 'lax'
+        | 'none') || 'lax';
+    const refreshTtlDays =
+      parseInt(
+        this.configService.get<string>('REFRESH_TTL_DAYS') || '7',
+        10,
+      ) || 7;
+    const maxAge = refreshTtlDays * 24 * 60 * 60 * 1000; // Convert days to milliseconds
+
+    res.cookie('refresh_token', token, {
+      httpOnly: true, // JavaScript cannot access
+      secure: cookieSecure, // Only sent over HTTPS in production
+      sameSite: cookieSameSite, // CSRF protection
+      path: '/', // Available for all paths (but only used by /auth/refresh)
+      maxAge,
+    });
+  }
+
+  /**
+   * Clear refresh token cookie
+   */
+  private clearRefreshTokenCookie(res: Response): void {
+    const cookieSecure =
+      this.configService.get<string>('COOKIE_SECURE') === 'true';
+    const cookieSameSite =
+      (this.configService.get<string>('COOKIE_SAMESITE') as
+        | 'strict'
+        | 'lax'
+        | 'none') || 'lax';
+
+    res.clearCookie('refresh_token', {
+      path: '/', // Must match the path used when setting cookie
+      httpOnly: true,
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
+    });
   }
 
   @Public()
@@ -123,36 +204,123 @@ export class AuthController {
   async changePassword(
     @Body() changePasswordDto: ChangePasswordDto,
     @Request() req: { user: JwtPayload },
-  ): Promise<AuthResponseDto> {
-    return this.authService.changePassword(
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LoginResponseDto> {
+    const result = await this.authService.changePassword(
       req.user.sub,
       changePasswordDto,
     );
+
+    // If result has refreshToken, set cookie
+    if ('refreshToken' in result && 'response' in result) {
+      const { refreshToken, response } = result as {
+        refreshToken: string;
+        response: LoginResponseDto;
+      };
+      this.setRefreshTokenCookie(res, refreshToken);
+      return response;
+    }
+
+    // Fallback (shouldn't happen with new implementation)
+    return result as LoginResponseDto;
   }
 
-  @UseGuards(AccessTokenGuard)
-  @Post('logout')
+  @Public()
+  @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'User logout' })
+  @ApiOperation({
+    summary: 'Refresh access token',
+    description:
+      'Refresh access token using refresh token from HttpOnly cookie. **No request body needed** - the refresh token is automatically sent by the browser in the `refresh_token` cookie (set during login). This endpoint: (1) reads refresh token from cookie, (2) verifies token and checks DB session, (3) rotates refresh token (issues new token, revokes old one), (4) sets new refresh token cookie, (5) returns new access token. If token reuse is detected, all sessions in the family are revoked.',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Logout successful',
+    description:
+      'Access token refreshed successfully. New refresh token is set in HttpOnly cookie.',
     schema: {
       type: 'object',
       properties: {
-        message: {
+        accessToken: {
           type: 'string',
-          example: 'Logged out successfully',
+          example:
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
         },
       },
     },
   })
   @ApiResponse({
     status: 401,
-    description: 'Unauthorized - Invalid or missing access token',
+    description:
+      'Unauthorized - Invalid, expired, missing, or reused refresh token. Also returned if user account is not active or user must change password.',
   })
-  async logout(): Promise<{ message: string }> {
-    return this.authService.logout();
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  async refresh(
+    @Request() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ accessToken: string }> {
+    const refreshToken = req.cookies?.refresh_token;
+
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token not found');
+    }
+
+    const userAgent = req.headers?.['user-agent'];
+    const ip =
+      req.headers?.['x-forwarded-for']?.toString() ||
+      (req.socket as any)?.remoteAddress ||
+      req.ip ||
+      'unknown';
+
+    const result = await this.authService.refreshAccessToken(
+      refreshToken,
+      userAgent,
+      ip,
+    );
+
+    // Set new refresh token cookie
+    this.setRefreshTokenCookie(res, result.refreshToken);
+
+    // Return only accessToken (refreshToken is in cookie)
+    return { accessToken: result.accessToken };
+  }
+
+  @Public()
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'User logout',
+    description:
+      'Logout user by revoking refresh token session in DB and clearing refresh token cookie. This endpoint does not require authentication (can be called with or without access token). After logout, refresh token cannot be used anymore.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Logout successful - refresh session revoked and cookie cleared',
+    schema: {
+      type: 'object',
+      properties: {
+        ok: {
+          type: 'boolean',
+          example: true,
+        },
+      },
+    },
+  })
+  async logout(
+    @Request() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ ok: boolean }> {
+    const refreshToken = req.cookies?.refresh_token;
+
+    if (refreshToken) {
+      await this.authService.revokeRefreshSession(refreshToken);
+    }
+
+    // Clear cookie
+    this.clearRefreshTokenCookie(res);
+
+    return { ok: true };
   }
 }

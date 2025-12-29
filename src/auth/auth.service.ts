@@ -7,9 +7,11 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto, UserInfoDto } from './dto/auth-response.dto';
+import { LoginResponseDto } from './dto/login-response.dto';
 import { LoginRequirePasswordChangeDto } from './dto/login-require-password-change.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import {
@@ -17,6 +19,12 @@ import {
   TokenType,
 } from '../common/interfaces/jwt-payload.interface';
 import { UserStatus } from '@prisma/client';
+import {
+  generateRefreshToken,
+  hashValidator,
+  parseRefreshToken,
+  verifyValidator,
+} from './utils/refresh-token.util';
 
 @Injectable()
 export class AuthService {
@@ -28,7 +36,13 @@ export class AuthService {
 
   async login(
     loginDto: LoginDto,
-  ): Promise<AuthResponseDto | LoginRequirePasswordChangeDto> {
+    userAgent?: string,
+    ip?: string,
+  ): Promise<
+    | LoginResponseDto
+    | LoginRequirePasswordChangeDto
+    | { response: LoginResponseDto; refreshToken: string }
+  > {
     const user = await this.prisma.user.findUnique({
       where: { email: loginDto.email },
       include: {
@@ -111,7 +125,7 @@ export class AuthService {
       throw new UnauthorizedException('Account is not active');
     }
 
-    // Generate access tokens (normal authenticated user)
+    // Generate access token (normal authenticated user)
     const payload: JwtPayload = {
       sub: user.id,
       orgId: user.orgId,
@@ -122,19 +136,36 @@ export class AuthService {
     };
 
     const accessTokenExpiresIn =
-      this.configService.get<string>('JWT_EXPIRES_IN') || '15m';
+      this.configService.get<string>('JWT_EXPIRES_IN') || '10m';
     const accessToken = this.jwtService.sign(payload as object, {
       expiresIn: accessTokenExpiresIn as any,
     });
 
-    const refreshTokenExpiresIn =
-      this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
-    const refreshToken = this.jwtService.sign(payload as object, {
-      expiresIn: refreshTokenExpiresIn as any,
-      secret:
-        this.configService.get<string>('JWT_REFRESH_SECRET') ||
-        this.configService.get<string>('JWT_SECRET') ||
-        'your-secret-key',
+    // Generate opaque refresh token and create session
+    const { token: refreshToken, selector, validator } = generateRefreshToken();
+    const validatorHash = await hashValidator(validator);
+
+    // Calculate expiration (default 7 days)
+    const refreshTokenTtlDays =
+      parseInt(
+        this.configService.get<string>('REFRESH_TTL_DAYS') || '7',
+        10,
+      ) || 7;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + refreshTokenTtlDays);
+
+    // Create refresh session in database
+    const familyId = crypto.randomUUID();
+    await this.prisma.refreshSession.create({
+      data: {
+        userId: user.id,
+        selector,
+        validatorHash,
+        familyId,
+        expiresAt,
+        userAgent: userAgent || null,
+        ip: ip || null,
+      },
     });
 
     // Prepare user info (without password)
@@ -160,17 +191,174 @@ export class AuthService {
         : null,
     };
 
+    // Return response with refreshToken (controller will set cookie and remove from response)
+    return {
+      response: {
+        accessToken,
+        user: userInfo,
+      },
+      refreshToken,
+    };
+  }
+
+  /**
+   * Refresh access token using refresh token from cookie
+   * Implements rotation and reuse detection
+   */
+  async refreshAccessToken(
+    refreshToken: string,
+    userAgent?: string,
+    ip?: string,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    // Parse token
+    const parsed = parseRefreshToken(refreshToken);
+    if (!parsed) {
+      throw new UnauthorizedException('Invalid refresh token format');
+    }
+
+    const { selector, validator } = parsed;
+
+    // Find session by selector
+    const session = await this.prisma.refreshSession.findUnique({
+      where: { selector },
+      include: { user: true },
+    });
+
+    if (!session) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    // Check if session is revoked
+    if (session.revokedAt) {
+      throw new UnauthorizedException('Refresh token has been revoked');
+    }
+
+    // Check if session is expired
+    if (new Date() > session.expiresAt) {
+      throw new UnauthorizedException('Refresh token has expired');
+    }
+
+    // Verify validator hash - REUSE DETECTION
+    const isValid = await verifyValidator(validator, session.validatorHash);
+    if (!isValid) {
+      // Token reuse detected - revoke entire family
+      await this.prisma.refreshSession.updateMany({
+        where: {
+          familyId: session.familyId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      });
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    // Check if user still exists and is active
+    if (!session.user || session.user.deletedAt) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (session.user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException('Account is not active');
+    }
+
+    if (session.user.mustChangePassword) {
+      throw new UnauthorizedException(
+        'You must change your password before accessing the system',
+      );
+    }
+
+    // ROTATION: Create new session and revoke old one (transaction)
+    const { token: newRefreshToken, selector: newSelector, validator: newValidator } =
+      generateRefreshToken();
+    const newValidatorHash = await hashValidator(newValidator);
+
+    const refreshTokenTtlDays =
+      parseInt(
+        this.configService.get<string>('REFRESH_TTL_DAYS') || '7',
+        10,
+      ) || 7;
+    const newExpiresAt = new Date();
+    newExpiresAt.setDate(newExpiresAt.getDate() + refreshTokenTtlDays);
+
+    // Use transaction for atomicity
+    await this.prisma.$transaction(async (tx) => {
+      // Create new session
+      const newSession = await tx.refreshSession.create({
+        data: {
+          userId: session.userId,
+          selector: newSelector,
+          validatorHash: newValidatorHash,
+          familyId: session.familyId, // Same family
+          expiresAt: newExpiresAt,
+          userAgent: userAgent || null,
+          ip: ip || null,
+        },
+      });
+
+      // Revoke old session and link to new one
+      await tx.refreshSession.update({
+        where: { id: session.id },
+        data: {
+          revokedAt: new Date(),
+          replacedById: newSession.id,
+        },
+      });
+    });
+
+    // Generate new access token
+    const payload: JwtPayload = {
+      sub: session.userId,
+      orgId: session.user.orgId,
+      roleId: session.user.roleId,
+      teamId: session.user.teamId || undefined,
+      email: session.user.email,
+      type: 'access',
+    };
+
+    const accessTokenExpiresIn =
+      this.configService.get<string>('JWT_EXPIRES_IN') || '10m';
+    const accessToken = this.jwtService.sign(payload as object, {
+      expiresIn: accessTokenExpiresIn as any,
+    });
+
+    // Return accessToken and newRefreshToken (controller will set cookie)
     return {
       accessToken,
-      refreshToken,
-      user: userInfo,
+      refreshToken: newRefreshToken,
     };
+  }
+
+  /**
+   * Revoke refresh session (logout)
+   */
+  async revokeRefreshSession(refreshToken: string): Promise<void> {
+    const parsed = parseRefreshToken(refreshToken);
+    if (!parsed) {
+      // Invalid format, but don't throw - just return (idempotent)
+      return;
+    }
+
+    const { selector } = parsed;
+
+    // Find and revoke session
+    await this.prisma.refreshSession.updateMany({
+      where: {
+        selector,
+        revokedAt: null, // Only revoke if not already revoked
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
   }
 
   async logout(): Promise<{ message: string }> {
     // Stateless logout - client will delete tokens
     return { message: 'Logged out successfully' };
   }
+
 
   /**
    * Email verification with token expiration check (60 minutes)
@@ -230,7 +418,7 @@ export class AuthService {
   async changePassword(
     userId: string,
     changePasswordDto: ChangePasswordDto,
-  ): Promise<AuthResponseDto> {
+  ): Promise<{ response: LoginResponseDto; refreshToken: string }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -290,19 +478,32 @@ export class AuthService {
     };
 
     const accessTokenExpiresIn =
-      this.configService.get<string>('JWT_EXPIRES_IN') || '15m';
+      this.configService.get<string>('JWT_EXPIRES_IN') || '10m';
     const accessToken = this.jwtService.sign(payload as object, {
       expiresIn: accessTokenExpiresIn as any,
     });
 
-    const refreshTokenExpiresIn =
-      this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
-    const refreshToken = this.jwtService.sign(payload as object, {
-      expiresIn: refreshTokenExpiresIn as any,
-      secret:
-        this.configService.get<string>('JWT_REFRESH_SECRET') ||
-        this.configService.get<string>('JWT_SECRET') ||
-        'your-secret-key',
+    // Generate opaque refresh token and create session (same as login)
+    const { token: refreshToken, selector, validator } = generateRefreshToken();
+    const validatorHash = await hashValidator(validator);
+
+    const refreshTokenTtlDays =
+      parseInt(
+        this.configService.get<string>('REFRESH_TTL_DAYS') || '7',
+        10,
+      ) || 7;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + refreshTokenTtlDays);
+
+    const familyId = crypto.randomUUID();
+    await this.prisma.refreshSession.create({
+      data: {
+        userId: updatedUser.id,
+        selector,
+        validatorHash,
+        familyId,
+        expiresAt,
+      },
     });
 
     // Prepare user info
@@ -328,10 +529,13 @@ export class AuthService {
         : null,
     };
 
+    // Return response with refreshToken (controller will set cookie)
     return {
-      accessToken,
+      response: {
+        accessToken,
+        user: userInfo,
+      },
       refreshToken,
-      user: userInfo,
     };
   }
 }

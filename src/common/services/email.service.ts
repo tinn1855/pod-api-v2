@@ -72,13 +72,12 @@ export class EmailService {
       );
     }
 
-    // Use FRONTEND_URL if available, otherwise fall back to APP_URL
-    // The verification URL should point to frontend page that will make POST request to backend API
-    const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') ||
+    // Use APP_URL (backend API URL) for verification endpoint
+    // The verification API endpoint is POST /auth/verify-email
+    const backendUrl =
       this.configService.get<string>('APP_URL') ||
       'http://localhost:3000';
-    const verificationUrl = `${frontendUrl}/verify-email?token=${token}`;
+    const verificationApiUrl = `${backendUrl}/auth/verify-email`;
 
     const fromEmail = this.configService.get<string>('SMTP_FROM') || smtpUser;
 
@@ -101,19 +100,22 @@ export class EmailService {
           <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px;">
             <h1 style="color: #007bff; margin-top: 0;">Email Verification</h1>
             <p>Hello ${name},</p>
-            <p>Thank you for registering! Please verify your email address by clicking the button below:</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${verificationUrl}" 
-                 style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                Verify Email Address
-              </a>
+            <p>Thank you for registering! Please verify your email address by calling the API endpoint below:</p>
+            <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0 0 10px 0; font-weight: bold; color: #333;">API Endpoint:</p>
+              <p style="margin: 0 0 5px 0; font-family: monospace; word-break: break-all; color: #007bff;">
+                POST ${verificationApiUrl}
+              </p>
+              <p style="margin: 10px 0 5px 0; font-weight: bold; color: #333;">Request Body:</p>
+              <pre style="margin: 0; background-color: #fff; padding: 10px; border-radius: 3px; overflow-x: auto; font-size: 12px;">{
+  "verificationToken": "${token}"
+}</pre>
             </div>
-            <p>Or copy and paste this link into your browser:</p>
-            <p style="background-color: #e9ecef; padding: 10px; border-radius: 3px; word-break: break-all;">
-              ${verificationUrl}
+            <p style="color: #6c757d; font-size: 14px;">
+              <strong>Note:</strong> You can use tools like Postman, curl, or your application to make a POST request to the above endpoint with the verification token.
             </p>
             <p style="color: #6c757d; font-size: 12px; margin-top: 30px;">
-              This link will expire in 24 hours. If you didn't create an account, please ignore this email.
+              This token will expire in 60 minutes. If you didn't create an account, please ignore this email.
             </p>
           </div>
         </body>
@@ -122,11 +124,16 @@ export class EmailService {
       text: `
         Hello ${name},
         
-        Thank you for registering! Please verify your email address by clicking the link below:
+        Thank you for registering! Please verify your email address by calling the API endpoint:
         
-        ${verificationUrl}
+        POST ${verificationApiUrl}
         
-        This link will expire in 24 hours. If you didn't create an account, please ignore this email.
+        Request Body:
+        {
+          "verificationToken": "${token}"
+        }
+        
+        This token will expire in 60 minutes. If you didn't create an account, please ignore this email.
       `,
     };
 
@@ -191,13 +198,12 @@ export class EmailService {
       );
     }
 
-    // Use FRONTEND_URL if available, otherwise fall back to APP_URL
-    // The verification URL should point to frontend page that will make POST request to backend API
-    const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') ||
+    // Use APP_URL (backend API URL) for verification endpoint
+    // The verification API endpoint is POST /auth/verify-email
+    const backendUrl =
       this.configService.get<string>('APP_URL') ||
       'http://localhost:3000';
-    const verificationUrl = `${frontendUrl}/verify-email?token=${token}`;
+    const verificationApiUrl = `${backendUrl}/auth/verify-email`;
 
     const fromEmail = this.configService.get<string>('SMTP_FROM') || smtpUser;
 
@@ -231,21 +237,23 @@ export class EmailService {
             
             <p><strong>Important Security Steps:</strong></p>
             <ol>
-              <li>Click the button below to verify your email address</li>
+              <li>Call the API endpoint below to verify your email address</li>
               <li>After verification, log in using your email and the temporary password above</li>
               <li>You will be required to change your password on first login</li>
             </ol>
             
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${verificationUrl}" 
-                 style="background-color: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                Verify Email Address
-              </a>
+            <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0 0 10px 0; font-weight: bold; color: #333;">API Endpoint:</p>
+              <p style="margin: 0 0 5px 0; font-family: monospace; word-break: break-all; color: #007bff;">
+                POST ${verificationApiUrl}
+              </p>
+              <p style="margin: 10px 0 5px 0; font-weight: bold; color: #333;">Request Body:</p>
+              <pre style="margin: 0; background-color: #fff; padding: 10px; border-radius: 3px; overflow-x: auto; font-size: 12px;">{
+  "verificationToken": "${token}"
+}</pre>
             </div>
-            
-            <p>Or copy and paste this link into your browser:</p>
-            <p style="background-color: #e9ecef; padding: 10px; border-radius: 3px; word-break: break-all;">
-              ${verificationUrl}
+            <p style="color: #6c757d; font-size: 14px;">
+              <strong>Note:</strong> You can use tools like Postman, curl, or your application to make a POST request to the above endpoint with the verification token.
             </p>
             
             <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 20px 0;">
@@ -256,7 +264,7 @@ export class EmailService {
             </div>
             
             <p style="color: #6c757d; font-size: 12px; margin-top: 30px;">
-              This verification link will expire in 24 hours. If you didn't create an account, please ignore this email.
+              This token will expire in 60 minutes. If you didn't create an account, please ignore this email.
             </p>
           </div>
         </body>
@@ -270,16 +278,21 @@ export class EmailService {
         Your Temporary Password: ${temporaryPassword}
         
         Important Security Steps:
-        1. Verify your email address by clicking the link below
+        1. Verify your email address by calling the API endpoint below
         2. After verification, log in using your email and the temporary password above
         3. You will be required to change your password on first login
         
-        Verification Link: ${verificationUrl}
+        API Endpoint: POST ${verificationApiUrl}
+        
+        Request Body:
+        {
+          "verificationToken": "${token}"
+        }
         
         ⚠️ Security Notice:
         This is a temporary password. Please change it immediately after your first login for security reasons.
         
-        This verification link will expire in 24 hours. If you didn't create an account, please ignore this email.
+        This token will expire in 60 minutes. If you didn't create an account, please ignore this email.
       `,
     };
 

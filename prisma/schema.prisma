@@ -169,6 +169,7 @@ model User {
   logs                ActivityLog[] @relation("LogsActor")
   taskAssignees       TaskAssignee[]
   createdDesignFolders DesignFolder[]
+  refreshSessions     RefreshSession[]
 }
 
 model Role {
@@ -206,6 +207,30 @@ model Team {
   updatedAt DateTime @updatedAt
 
   users     User[]
+}
+
+model RefreshSession {
+  id            String   @id @default(uuid())
+  userId        String
+  selector      String   @unique // First part of token (selector.validator)
+  validatorHash String   // Hashed validator (bcrypt)
+  familyId      String   // UUID to group related sessions (rotation family)
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  replacedById  String?  // ID of session that replaced this one
+  userAgent     String?
+  ip            String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy    RefreshSession? @relation("SessionReplacement", fields: [replacedById], references: [id])
+  replaces      RefreshSession[] @relation("SessionReplacement")
+
+  @@index([userId, revokedAt])
+  @@index([familyId, revokedAt])
+  @@index([selector])
+  @@index([expiresAt])
 }
 
 ///////////////////////////////////////////////////////////
