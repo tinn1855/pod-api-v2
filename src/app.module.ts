@@ -18,6 +18,7 @@ import { DesignFoldersModule } from './design-folders/design-folders.module';
 import { ContentsModule } from './contents/contents.module';
 import { CommentsModule } from './comments/comments.module';
 import { ActivityLogsModule } from './activity-logs/activity-logs.module';
+import { PlatformsModule } from './platforms/platforms.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -40,6 +41,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     ContentsModule,
     CommentsModule,
     ActivityLogsModule,
+    PlatformsModule,
   ],
   controllers: [AppController],
   providers: [

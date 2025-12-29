@@ -63,6 +63,12 @@ function getPermissionDefinitions(): PermissionDefinition[] {
     { name: 'TEAM_UPDATE', description: 'Update team' },
     { name: 'TEAM_DELETE', description: 'Delete team' },
 
+    // PLATFORM
+    { name: 'PLATFORM_CREATE', description: 'Create platform' },
+    { name: 'PLATFORM_READ', description: 'Read platform' },
+    { name: 'PLATFORM_UPDATE', description: 'Update platform' },
+    { name: 'PLATFORM_DELETE', description: 'Delete platform' },
+
     // SHOP
     { name: 'SHOP_CREATE', description: 'Create shop' },
     { name: 'SHOP_READ', description: 'Read shop' },
