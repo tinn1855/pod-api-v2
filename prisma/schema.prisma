@@ -257,9 +257,11 @@ model Shop {
 }
 
 model Platform {
-  id   String @id @default(uuid())
-  code String @unique // ETSY, AMAZON, SHOPEE...
-  name String
+  id        String   @id @default(uuid())
+  code      String   @unique // ETSY, AMAZON, SHOPEE... (auto-generated from name)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   accounts Account[]
 }

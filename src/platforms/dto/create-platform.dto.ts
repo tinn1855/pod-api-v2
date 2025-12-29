@@ -1,20 +1,9 @@
-import { IsString, MinLength, Matches } from 'class-validator';
+import { IsString, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreatePlatformDto {
   @ApiProperty({
-    description: 'Platform code (unique identifier, uppercase, e.g., ETSY, AMAZON, SHOPEE)',
-    example: 'ETSY',
-  })
-  @IsString()
-  @MinLength(1, { message: 'Code must not be empty' })
-  @Matches(/^[A-Z0-9_]+$/, {
-    message: 'Code must contain only uppercase letters, numbers, and underscores',
-  })
-  code: string;
-
-  @ApiProperty({
-    description: 'Platform name',
+    description: 'Platform name (code will be auto-generated from name)',
     example: 'Etsy',
   })
   @IsString()

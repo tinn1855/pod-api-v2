@@ -17,20 +17,57 @@ import { Prisma } from '@prisma/client';
 export class PlatformsService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * Generate code from name
+   * Converts name to uppercase, removes special characters, replaces spaces with underscores
+   * Example: "Etsy Marketplace" -> "ETSY_MARKETPLACE"
+   */
+  private generateCodeFromName(name: string): string {
+    return name
+      .toUpperCase()
+      .replace(/[^A-Z0-9\s]/g, '') // Remove special characters
+      .trim()
+      .replace(/\s+/g, '_') // Replace spaces with underscores
+      .replace(/_+/g, '_') // Replace multiple underscores with single
+      .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
+  }
+
+  /**
+   * Generate unique code from name, handling conflicts by appending number
+   */
+  private async generateUniqueCode(name: string): Promise<string> {
+    let baseCode = this.generateCodeFromName(name);
+
+    // Ensure code is not empty
+    if (!baseCode) {
+      baseCode = 'PLATFORM';
+    }
+
+    let code = baseCode;
+    let counter = 1;
+
+    // Check if code exists, if yes, append number
+    while (true) {
+      const existing = await this.prisma.platform.findUnique({
+        where: { code },
+      });
+
+      if (!existing) {
+        break;
+      }
+
+      code = `${baseCode}_${counter}`;
+      counter++;
+    }
+
+    return code;
+  }
+
   async create(
     createPlatformDto: CreatePlatformDto,
   ): Promise<PlatformResponseDto> {
-    // Normalize code to uppercase
-    const code = createPlatformDto.code.toUpperCase();
-
-    // Check if platform code already exists
-    const existingPlatform = await this.prisma.platform.findUnique({
-      where: { code },
-    });
-
-    if (existingPlatform) {
-      throw new ConflictException(`Platform with code '${code}' already exists`);
-    }
+    // Auto-generate code from name
+    const code = await this.generateUniqueCode(createPlatformDto.name);
 
     // Create platform
     const platform = await this.prisma.platform.create({
@@ -122,27 +159,13 @@ export class PlatformsService {
     // Prepare update data
     const updateData: Prisma.PlatformUpdateInput = {};
 
-    if (updatePlatformDto.code !== undefined) {
-      const code = updatePlatformDto.code.toUpperCase();
-
-      // Check if new code conflicts with existing platform
-      if (code !== existingPlatform.code) {
-        const conflictingPlatform = await this.prisma.platform.findUnique({
-          where: { code },
-        });
-
-        if (conflictingPlatform) {
-          throw new ConflictException(
-            `Platform with code '${code}' already exists`,
-          );
-        }
-      }
-
-      updateData.code = code;
-    }
-
+    // If name is updated, regenerate code from new name
     if (updatePlatformDto.name !== undefined) {
       updateData.name = updatePlatformDto.name;
+
+      // Regenerate code from new name
+      const newCode = await this.generateUniqueCode(updatePlatformDto.name);
+      updateData.code = newCode;
     }
 
     // Update platform
