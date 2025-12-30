@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -27,6 +28,7 @@ import { RoleResponseDto, RoleListResponseDto } from './dto/role-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../common/decorators/permissions.decorator';
+import type { UserRequest } from '../common/interfaces/user-request.interface';
 
 @ApiTags('Roles')
 @ApiBearerAuth('JWT-auth')
@@ -51,8 +53,15 @@ export class RolesController {
     status: 409,
     description: 'Conflict - Role name already exists',
   })
-  async create(@Body() createRoleDto: CreateRoleDto): Promise<RoleResponseDto> {
-    return this.rolesService.create(createRoleDto);
+  async create(
+    @Req() req: UserRequest,
+    @Body() createRoleDto: CreateRoleDto,
+  ): Promise<RoleResponseDto> {
+    return this.rolesService.create(
+      createRoleDto,
+      req.user.orgId,
+      req.user.sub,
+    );
   }
 
   @Get()
@@ -111,10 +120,16 @@ export class RolesController {
     description: 'Conflict - Role name already exists',
   })
   async update(
+    @Req() req: UserRequest,
     @Param('id') id: string,
     @Body() updateRoleDto: UpdateRoleDto,
   ): Promise<RoleResponseDto> {
-    return this.rolesService.update(id, updateRoleDto);
+    return this.rolesService.update(
+      id,
+      updateRoleDto,
+      req.user.orgId,
+      req.user.sub,
+    );
   }
 
   @Delete(':id')
@@ -144,7 +159,10 @@ export class RolesController {
     status: 409,
     description: 'Conflict - Role has users, cannot delete',
   })
-  async remove(@Param('id') id: string): Promise<{ message: string }> {
-    return this.rolesService.remove(id);
+  async remove(
+    @Req() req: UserRequest,
+    @Param('id') id: string,
+  ): Promise<{ message: string }> {
+    return this.rolesService.remove(id, req.user.orgId, req.user.sub);
   }
 }

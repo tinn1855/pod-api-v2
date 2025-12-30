@@ -64,10 +64,13 @@ export class UsersController {
     @Body() createUserDto: CreateUserDto,
   ): Promise<UserResponseDto> {
     // Set orgId from current user's organization and pass to service
-    return this.usersService.create({
-      ...createUserDto,
-      orgId: req.user.orgId,
-    });
+    return this.usersService.create(
+      {
+        ...createUserDto,
+        orgId: req.user.orgId,
+      },
+      req.user.sub, // actorId
+    );
   }
 
   @Get()
@@ -112,10 +115,11 @@ export class UsersController {
   })
   @ApiResponse({ status: 404, description: 'User not found' })
   async update(
+    @Req() req: UserRequest,
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
   ): Promise<UserResponseDto> {
-    return this.usersService.update(id, updateUserDto);
+    return this.usersService.update(id, updateUserDto, req.user.sub);
   }
 
   @Delete(':id')
@@ -140,7 +144,10 @@ export class UsersController {
     },
   })
   @ApiResponse({ status: 404, description: 'User not found' })
-  async remove(@Param('id') id: string): Promise<{ message: string }> {
-    return this.usersService.remove(id);
+  async remove(
+    @Req() req: UserRequest,
+    @Param('id') id: string,
+  ): Promise<{ message: string }> {
+    return this.usersService.remove(id, req.user.sub);
   }
 }

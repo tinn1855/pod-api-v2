@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -29,6 +30,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../common/decorators/permissions.decorator';
+import type { UserRequest } from '../common/interfaces/user-request.interface';
 
 @ApiTags('Platforms')
 @ApiBearerAuth('JWT-auth')
@@ -59,9 +61,14 @@ export class PlatformsController {
     description: 'Conflict - Platform code already exists',
   })
   async create(
+    @Req() req: UserRequest,
     @Body() createPlatformDto: CreatePlatformDto,
   ): Promise<PlatformResponseDto> {
-    return this.platformsService.create(createPlatformDto);
+    return this.platformsService.create(
+      createPlatformDto,
+      req.user.orgId,
+      req.user.sub,
+    );
   }
 
   @Get()
@@ -117,10 +124,16 @@ export class PlatformsController {
     description: 'Conflict - Platform code already exists',
   })
   async update(
+    @Req() req: UserRequest,
     @Param('id') id: string,
     @Body() updatePlatformDto: UpdatePlatformDto,
   ): Promise<PlatformResponseDto> {
-    return this.platformsService.update(id, updatePlatformDto);
+    return this.platformsService.update(
+      id,
+      updatePlatformDto,
+      req.user.orgId,
+      req.user.sub,
+    );
   }
 
   @Delete(':id')
@@ -150,8 +163,11 @@ export class PlatformsController {
     status: 409,
     description: 'Conflict - Platform has accounts, cannot delete',
   })
-  async remove(@Param('id') id: string): Promise<{ message: string }> {
-    return this.platformsService.remove(id);
+  async remove(
+    @Req() req: UserRequest,
+    @Param('id') id: string,
+  ): Promise<{ message: string }> {
+    return this.platformsService.remove(id, req.user.orgId, req.user.sub);
   }
 }
 

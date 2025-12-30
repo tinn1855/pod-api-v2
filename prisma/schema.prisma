@@ -63,6 +63,14 @@ enum EntityType {
   DESIGN
   FOLDER
   CONTENT
+  USER
+  TEAM
+  ROLE
+  PLATFORM
+  SHOP
+  ACCOUNT
+  PRODUCT
+  ORDER
 }
 
 enum FilePurpose {
@@ -98,6 +106,24 @@ enum ProductionJobStatus {
   IN_PROGRESS
   COMPLETED
   FAILED
+}
+
+enum ShopPlatform {
+  ETSY
+  AMAZON
+  SHOPIFY
+  OTHER
+}
+
+enum ConnectionStatus {
+  DISCONNECTED
+  CONNECTED
+  TOKEN_EXPIRED
+  ERROR
+}
+
+enum CredentialType {
+  OAUTH
 }
 
 ///////////////////////////////////////////////////////////
@@ -170,6 +196,7 @@ model User {
   taskAssignees       TaskAssignee[]
   createdDesignFolders DesignFolder[]
   refreshSessions     RefreshSession[]
+  ownedShops          Shop[] @relation("ShopOwner")
 }
 
 model Role {
@@ -238,22 +265,26 @@ model RefreshSession {
 ///////////////////////////////////////////////////////////
 
 model Shop {
-  id        String     @id @default(uuid())
-  orgId     String
-  name      String
-  code      String     @unique
-  status    ShopStatus @default(ACTIVE)
+  id          String     @id @default(uuid())
+  orgId       String
+  ownerUserId String
+  name        String
+  isActive    Boolean    @default(true)
 
-  deletedAt DateTime?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
-  org       Organization @relation(fields: [orgId], references: [id])
+  org         Organization @relation(fields: [orgId], references: [id])
+  owner       User         @relation("ShopOwner", fields: [ownerUserId], references: [id])
 
-  accounts  Account[]
-  products  Product[]
-  boards    Board[]
-  contents  Content[]
+  connections ShopConnection[]
+  accounts    Account[]      // Legacy relation (for existing Account model)
+  products    Product[]
+  boards      Board[]
+  contents    Content[]
+
+  @@index([orgId, createdAt])
+  @@index([ownerUserId, createdAt])
 }
 
 model Platform {
@@ -264,6 +295,44 @@ model Platform {
   updatedAt DateTime @updatedAt
 
   accounts Account[]
+}
+
+model ShopConnection {
+  id          String           @id @default(uuid())
+  shopId      String
+  platform    ShopPlatform
+  status      ConnectionStatus @default(DISCONNECTED)
+  displayName String?
+  isActive    Boolean          @default(true)
+  region      String?
+  currency    String?
+  lastSyncAt DateTime?
+  lastError  String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  shop        Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  credential  ConnectionCredential?
+
+  @@unique([shopId, platform])
+  @@index([shopId, status])
+  @@index([shopId, createdAt])
+}
+
+model ConnectionCredential {
+  id              String         @id @default(uuid())
+  connectionId    String         @unique
+  type            CredentialType
+  accessTokenEnc  String?        @db.Text
+  refreshTokenEnc String?        @db.Text
+  apiKeyEnc       String?        @db.Text
+  expiresAt       DateTime?
+  scopesJson      Json?
+  metaJson        Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  connection      ShopConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 }
 
 model Account {

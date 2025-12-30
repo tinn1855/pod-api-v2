@@ -11,11 +11,15 @@ import {
   PlatformResponseDto,
   PlatformListResponseDto,
 } from './dto/platform-response.dto';
-import { Prisma } from '@prisma/client';
+import { ActivityLogService } from '../common/services/activity-log.service';
+import { Prisma, EntityType } from '@prisma/client';
 
 @Injectable()
 export class PlatformsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private activityLogService: ActivityLogService,
+  ) {}
 
   /**
    * Generate code from name
@@ -65,6 +69,8 @@ export class PlatformsService {
 
   async create(
     createPlatformDto: CreatePlatformDto,
+    orgId: string,
+    actorId: string,
   ): Promise<PlatformResponseDto> {
     // Auto-generate code from name
     const code = await this.generateUniqueCode(createPlatformDto.name);
@@ -81,6 +87,19 @@ export class PlatformsService {
         },
       },
     });
+
+    // Log activity
+    await this.activityLogService.createLog(
+      orgId,
+      actorId,
+      'CREATE',
+      EntityType.PLATFORM,
+      platform.id,
+      {
+        code: platform.code,
+        name: platform.name,
+      },
+    );
 
     return this.mapToPlatformResponse(platform);
   }
@@ -147,6 +166,8 @@ export class PlatformsService {
   async update(
     id: string,
     updatePlatformDto: UpdatePlatformDto,
+    orgId: string,
+    actorId: string,
   ): Promise<PlatformResponseDto> {
     const existingPlatform = await this.prisma.platform.findUnique({
       where: { id },
@@ -179,10 +200,26 @@ export class PlatformsService {
       },
     });
 
+    // Log activity
+    await this.activityLogService.createLog(
+      orgId,
+      actorId,
+      'UPDATE',
+      EntityType.PLATFORM,
+      platform.id,
+      {
+        updatedFields: Object.keys(updatePlatformDto),
+      },
+    );
+
     return this.mapToPlatformResponse(platform);
   }
 
-  async remove(id: string): Promise<{ message: string }> {
+  async remove(
+    id: string,
+    orgId: string,
+    actorId: string,
+  ): Promise<{ message: string }> {
     const platform = await this.prisma.platform.findUnique({
       where: { id },
       include: {
@@ -206,6 +243,19 @@ export class PlatformsService {
     await this.prisma.platform.delete({
       where: { id },
     });
+
+    // Log activity
+    await this.activityLogService.createLog(
+      orgId,
+      actorId,
+      'DELETE',
+      EntityType.PLATFORM,
+      platform.id,
+      {
+        code: platform.code,
+        name: platform.name,
+      },
+    );
 
     return { message: 'Platform deleted successfully' };
   }

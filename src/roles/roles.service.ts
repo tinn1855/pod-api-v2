@@ -12,12 +12,21 @@ import {
   RoleResponseDto,
   RoleListResponseDto,
 } from './dto/role-response.dto';
+import { ActivityLogService } from '../common/services/activity-log.service';
+import { EntityType } from '@prisma/client';
 
 @Injectable()
 export class RolesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private activityLogService: ActivityLogService,
+  ) {}
 
-  async create(createRoleDto: CreateRoleDto): Promise<RoleResponseDto> {
+  async create(
+    createRoleDto: CreateRoleDto,
+    orgId: string,
+    actorId: string,
+  ): Promise<RoleResponseDto> {
     // Check if role name already exists
     const existingRole = await this.prisma.role.findUnique({
       where: { name: createRoleDto.name },
@@ -43,6 +52,18 @@ export class RolesService {
         },
       },
     });
+
+    // Log activity (roles are global but we log with actor's orgId)
+    await this.activityLogService.createLog(
+      orgId,
+      actorId,
+      'CREATE',
+      EntityType.ROLE,
+      role.id,
+      {
+        name: role.name,
+      },
+    );
 
     return this.mapToRoleResponse(role);
   }
@@ -103,7 +124,12 @@ export class RolesService {
     return this.mapToRoleResponse(role);
   }
 
-  async update(id: string, updateRoleDto: UpdateRoleDto): Promise<RoleResponseDto> {
+  async update(
+    id: string,
+    updateRoleDto: UpdateRoleDto,
+    orgId: string,
+    actorId: string,
+  ): Promise<RoleResponseDto> {
     const existingRole = await this.prisma.role.findUnique({
       where: { id },
     });
@@ -195,10 +221,27 @@ export class RolesService {
       throw new NotFoundException('Role not found');
     }
 
+    // Log activity
+    await this.activityLogService.createLog(
+      orgId,
+      actorId,
+      'UPDATE',
+      EntityType.ROLE,
+      role.id,
+      {
+        updatedFields: Object.keys(updateRoleDto),
+        permissionsUpdated: updateRoleDto.permissionIds !== undefined,
+      },
+    );
+
     return this.mapToRoleResponse(role);
   }
 
-  async remove(id: string): Promise<{ message: string }> {
+  async remove(
+    id: string,
+    orgId: string,
+    actorId: string,
+  ): Promise<{ message: string }> {
     const role = await this.prisma.role.findUnique({
       where: { id },
       include: {
@@ -228,6 +271,18 @@ export class RolesService {
     await this.prisma.role.delete({
       where: { id },
     });
+
+    // Log activity
+    await this.activityLogService.createLog(
+      orgId,
+      actorId,
+      'DELETE',
+      EntityType.ROLE,
+      role.id,
+      {
+        name: role.name,
+      },
+    );
 
     return { message: 'Role deleted successfully' };
   }

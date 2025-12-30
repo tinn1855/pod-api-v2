@@ -12,16 +12,21 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
 import { UserResponseDto, UserListResponseDto } from './dto/user-response.dto';
 import { EmailService } from '../common/services/email.service';
-import { UserStatus, Prisma } from '@prisma/client';
+import { ActivityLogService } from '../common/services/activity-log.service';
+import { UserStatus, Prisma, EntityType } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
   constructor(
     private prisma: PrismaService,
     private emailService: EmailService,
+    private activityLogService: ActivityLogService,
   ) {}
 
-  async create(createUserDto: CreateUserInternalDto): Promise<UserResponseDto> {
+  async create(
+    createUserDto: CreateUserInternalDto,
+    actorId: string,
+  ): Promise<UserResponseDto> {
     // Check if email already exists
     const existingUser = await this.prisma.user.findUnique({
       where: { email: createUserDto.email },
@@ -183,6 +188,21 @@ export class UsersService {
       );
     }
 
+    // Log activity
+    await this.activityLogService.createLog(
+      createUserDto.orgId,
+      actorId,
+      'CREATE',
+      EntityType.USER,
+      user.id,
+      {
+        email: user.email,
+        name: user.name,
+        roleId: user.roleId,
+        teamId: user.teamId,
+      },
+    );
+
     // Return user response WITHOUT password
     return this.mapToUserResponse(user);
   }
@@ -256,6 +276,7 @@ export class UsersService {
   async update(
     id: string,
     updateUserDto: UpdateUserDto,
+    actorId: string,
   ): Promise<UserResponseDto> {
     // Check if user exists and not deleted
     const existingUser = await this.prisma.user.findUnique({
@@ -344,10 +365,25 @@ export class UsersService {
       },
     });
 
+    // Log activity
+    await this.activityLogService.createLog(
+      user.orgId,
+      actorId,
+      'UPDATE',
+      EntityType.USER,
+      user.id,
+      {
+        updatedFields: Object.keys(updateUserDto),
+      },
+    );
+
     return this.mapToUserResponse(user);
   }
 
-  async remove(id: string): Promise<{ message: string }> {
+  async remove(
+    id: string,
+    actorId: string,
+  ): Promise<{ message: string }> {
     // Check if user exists
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -379,6 +415,19 @@ export class UsersService {
         status: UserStatus.INACTIVE,
       },
     });
+
+    // Log activity
+    await this.activityLogService.createLog(
+      user.orgId,
+      actorId,
+      'DELETE',
+      EntityType.USER,
+      user.id,
+      {
+        email: user.email,
+        name: user.name,
+      },
+    );
 
     return { message: 'User deleted successfully' };
   }

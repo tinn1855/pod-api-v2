@@ -19,6 +19,8 @@ import { ContentsModule } from './contents/contents.module';
 import { CommentsModule } from './comments/comments.module';
 import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 import { PlatformsModule } from './platforms/platforms.module';
+import { ShopsModule } from './shops/shops.module';
+import { ConnectionsModule } from './connections/connections.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -42,6 +44,8 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     CommentsModule,
     ActivityLogsModule,
     PlatformsModule,
+    ShopsModule,
+    ConnectionsModule,
   ],
   controllers: [AppController],
   providers: [

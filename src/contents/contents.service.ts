@@ -40,7 +40,7 @@ export class ContentsService {
       where: { id: createContentDto.shopId },
     });
 
-    if (!shop || shop.orgId !== orgId || shop.deletedAt !== null) {
+    if (!shop || shop.orgId !== orgId) {
       throw new NotFoundException('Shop not found');
     }
 
@@ -243,7 +243,7 @@ export class ContentsService {
         where: { id: updateContentDto.shopId },
       });
 
-      if (!shop || shop.orgId !== orgId || shop.deletedAt !== null) {
+      if (!shop || shop.orgId !== orgId) {
         throw new NotFoundException('Shop not found');
       }
 

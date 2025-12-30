@@ -32,7 +32,7 @@ export class BoardsService {
         where: { id: createBoardDto.shopId },
       });
 
-      if (!shop || shop.orgId !== orgId || shop.deletedAt !== null) {
+      if (!shop || shop.orgId !== orgId) {
         throw new NotFoundException('Shop not found');
       }
     }
@@ -239,7 +239,7 @@ export class BoardsService {
           where: { id: updateBoardDto.shopId },
         });
 
-        if (!shop || shop.orgId !== orgId || shop.deletedAt !== null) {
+        if (!shop || shop.orgId !== orgId) {
           throw new NotFoundException('Shop not found');
         }
       }

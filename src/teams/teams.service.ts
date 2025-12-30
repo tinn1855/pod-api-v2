@@ -11,12 +11,21 @@ import {
   TeamResponseDto,
   TeamListResponseDto,
 } from './dto/team-response.dto';
+import { ActivityLogService } from '../common/services/activity-log.service';
+import { EntityType } from '@prisma/client';
 
 @Injectable()
 export class TeamsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private activityLogService: ActivityLogService,
+  ) {}
 
-  async create(createTeamDto: CreateTeamDto): Promise<TeamResponseDto> {
+  async create(
+    createTeamDto: CreateTeamDto,
+    orgId: string,
+    actorId: string,
+  ): Promise<TeamResponseDto> {
     // Check if team name already exists
     const existingTeam = await this.prisma.team.findFirst({
       where: { name: createTeamDto.name },
@@ -30,7 +39,24 @@ export class TeamsService {
       data: {
         name: createTeamDto.name,
       },
+      include: {
+        _count: {
+          select: { users: true },
+        },
+      },
     });
+
+    // Log activity
+    await this.activityLogService.createLog(
+      orgId,
+      actorId,
+      'CREATE',
+      EntityType.TEAM,
+      team.id,
+      {
+        name: team.name,
+      },
+    );
 
     return this.mapToTeamResponse(team);
   }
@@ -81,7 +107,12 @@ export class TeamsService {
     return this.mapToTeamResponse(team);
   }
 
-  async update(id: string, updateTeamDto: UpdateTeamDto): Promise<TeamResponseDto> {
+  async update(
+    id: string,
+    updateTeamDto: UpdateTeamDto,
+    orgId: string,
+    actorId: string,
+  ): Promise<TeamResponseDto> {
     const existingTeam = await this.prisma.team.findUnique({
       where: { id },
     });
@@ -114,10 +145,26 @@ export class TeamsService {
       },
     });
 
+    // Log activity
+    await this.activityLogService.createLog(
+      orgId,
+      actorId,
+      'UPDATE',
+      EntityType.TEAM,
+      team.id,
+      {
+        updatedFields: Object.keys(updateTeamDto),
+      },
+    );
+
     return this.mapToTeamResponse(team);
   }
 
-  async remove(id: string): Promise<{ message: string }> {
+  async remove(
+    id: string,
+    orgId: string,
+    actorId: string,
+  ): Promise<{ message: string }> {
     const team = await this.prisma.team.findUnique({
       where: { id },
       include: {
@@ -141,6 +188,18 @@ export class TeamsService {
     await this.prisma.team.delete({
       where: { id },
     });
+
+    // Log activity
+    await this.activityLogService.createLog(
+      orgId,
+      actorId,
+      'DELETE',
+      EntityType.TEAM,
+      team.id,
+      {
+        name: team.name,
+      },
+    );
 
     return { message: 'Team deleted successfully' };
   }
