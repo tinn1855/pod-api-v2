@@ -88,7 +88,6 @@ export class AuthController {
       return result;
     }
 
-    // Extract refreshToken and set cookie
     if ('refreshToken' in result && 'response' in result) {
       const { refreshToken, response } = result as {
         refreshToken: string;
@@ -101,81 +100,27 @@ export class AuthController {
     return result;
   }
 
-  /**
-   * Set refresh token as HttpOnly cookie
-   * In dev mode (NODE_ENV !== 'production'): sameSite='none', secure=true (required for cross-site cookies)
-   * In production: auto-detect cross-site or use COOKIE_SAMESITE and COOKIE_SECURE from env
-   */
   private setRefreshTokenCookie(res: Response, token: string): void {
-    const isDev = this.configService.get<string>('NODE_ENV') !== 'production';
     const refreshTtlDays =
       parseInt(this.configService.get<string>('REFRESH_TTL_DAYS') || '7', 10) ||
       7;
-    const maxAge = refreshTtlDays * 24 * 60 * 60 * 1000; // Convert days to milliseconds
-
-    // Check if frontend and backend are on different domains (cross-site)
-    const frontendOrigin = this.configService.get<string>('FRONTEND_ORIGIN');
-    const isCrossSite =
-      frontendOrigin &&
-      !frontendOrigin.includes('localhost') &&
-      !frontendOrigin.includes('127.0.0.1');
-
-    // Dev mode OR cross-site production: sameSite='none' and secure=true
-    // Same-site production: use env vars (default: sameSite='lax', secure=true)
-    const cookieSecure =
-      isDev || isCrossSite
-        ? true
-        : this.configService.get<string>('COOKIE_SECURE') !== 'false';
-    const cookieSameSite =
-      isDev || isCrossSite
-        ? ('none' as const)
-        : (this.configService.get<string>('COOKIE_SAMESITE') as
-            | 'strict'
-            | 'lax'
-            | 'none') || 'lax';
+    const maxAge = refreshTtlDays * 24 * 60 * 60 * 1000;
 
     res.cookie('refresh_token', token, {
-      httpOnly: true, // JavaScript cannot access
-      secure: cookieSecure, // Required for sameSite='none' (cross-site)
-      sameSite: cookieSameSite, // 'none' for cross-site, 'lax' for same-site
-      path: '/', // Available for all paths (but only used by /auth/refresh)
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      path: '/',
       maxAge,
     });
   }
 
-  /**
-   * Clear refresh token cookie
-   * Must use same secure/sameSite/path as setRefreshTokenCookie
-   */
   private clearRefreshTokenCookie(res: Response): void {
-    const isDev = this.configService.get<string>('NODE_ENV') !== 'production';
-
-    // Check if frontend and backend are on different domains (cross-site)
-    const frontendOrigin = this.configService.get<string>('FRONTEND_ORIGIN');
-    const isCrossSite =
-      frontendOrigin &&
-      !frontendOrigin.includes('localhost') &&
-      !frontendOrigin.includes('127.0.0.1');
-
-    // Dev mode OR cross-site production: sameSite='none' and secure=true
-    // Same-site production: use env vars (default: sameSite='lax', secure=true)
-    const cookieSecure =
-      isDev || isCrossSite
-        ? true
-        : this.configService.get<string>('COOKIE_SECURE') !== 'false';
-    const cookieSameSite =
-      isDev || isCrossSite
-        ? ('none' as const)
-        : (this.configService.get<string>('COOKIE_SAMESITE') as
-            | 'strict'
-            | 'lax'
-            | 'none') || 'lax';
-
     res.clearCookie('refresh_token', {
-      path: '/', // Must match the path used when setting cookie
+      path: '/',
       httpOnly: true,
-      secure: cookieSecure,
-      sameSite: cookieSameSite,
+      secure: true,
+      sameSite: 'none',
     });
   }
 
@@ -259,7 +204,6 @@ export class AuthController {
       return response;
     }
 
-    // Fallback (shouldn't happen with new implementation)
     return result as LoginResponseDto;
   }
 
