@@ -183,9 +183,6 @@ async function main() {
 
   await prisma.$transaction(
     async (tx) => {
-      /* ---------- CLEAN ALL DATA ---------- */
-      console.log('🗑️  Cleaning all existing data...');
-
       // Delete in order of dependencies (child tables first)
       await tx.activityLog.deleteMany({});
       await tx.comment.deleteMany({});
@@ -212,13 +209,11 @@ async function main() {
       const org = await tx.organization.create({
         data: { name: 'Default Organization' },
       });
-      console.log(`📁 Created organization: ${org.name}`);
 
       /* ---------- TEAM ---------- */
       const team = await tx.team.create({
         data: { name: 'Default Team' },
       });
-      console.log(`👥 Created team: ${team.name}`);
 
       /* ---------- PERMISSIONS ---------- */
       await tx.permission.createMany({

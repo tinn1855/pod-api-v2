@@ -40,7 +40,12 @@ async function bootstrap() {
   const allowedOrigins = [
     frontendOrigin,
     'http://127.0.0.1:4200', // Alternative localhost format
-  ];
+  ].filter(Boolean); // Remove any undefined/null values
+
+  // Log allowed origins for debugging (only in non-production)
+  if (configService.get<string>('NODE_ENV') !== 'production') {
+    console.log('CORS allowed origins:', allowedOrigins);
+  }
 
   app.enableCors({
     origin: (
@@ -59,8 +64,15 @@ async function bootstrap() {
         return;
       }
 
+      // Log rejected origin for debugging
+      console.warn(
+        `CORS: Origin "${origin}" is not in whitelist. Allowed origins:`,
+        allowedOrigins,
+      );
+
       // Reject origin not in whitelist
-      callback(new Error('Not allowed by CORS'), false);
+      // Note: CORS middleware expects callback(err, false) for rejection
+      callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],

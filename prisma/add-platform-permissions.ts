@@ -7,8 +7,6 @@ const prisma = new PrismaClient();
  * This script safely adds new permissions without deleting existing data
  */
 async function main() {
-  console.log('🔐 Adding Platform permissions...\n');
-
   const platformPermissions = [
     'PLATFORM_CREATE',
     'PLATFORM_READ',
@@ -24,7 +22,6 @@ async function main() {
         update: {}, // No update needed if exists
         create: { name: permName },
       });
-      console.log(`✅ Permission '${permName}' added/verified`);
     }
 
     // Get all permissions including new ones
@@ -36,9 +33,7 @@ async function main() {
       },
     });
 
-    const permissionMap = new Map(
-      permissions.map((p) => [p.name, p.id]),
-    );
+    const permissionMap = new Map(permissions.map((p) => [p.name, p.id]));
 
     // Get SUPER_ADMIN and ADMIN roles
     const roles = await prisma.role.findMany({
@@ -69,18 +64,7 @@ async function main() {
           });
         }
       }
-      console.log(
-        `✅ Platform permissions added to role '${role.name}'`,
-      );
     }
-
-    console.log('\n✅ All Platform permissions added successfully!');
-    console.log(
-      '\n📝 Note: If you need to add these permissions to other roles,',
-    );
-    console.log(
-      '   you can do so via the Roles API (PATCH /roles/:id/permissions)',
-    );
   } catch (error) {
     console.error('❌ Error adding permissions:', error);
     throw error;
@@ -95,4 +79,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
