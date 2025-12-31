@@ -104,7 +104,7 @@ export class AuthController {
   /**
    * Set refresh token as HttpOnly cookie
    * In dev mode (NODE_ENV !== 'production'): sameSite='none', secure=true (required for cross-site cookies)
-   * In production: uses COOKIE_SAMESITE and COOKIE_SECURE from env
+   * In production: auto-detect cross-site or use COOKIE_SAMESITE and COOKIE_SECURE from env
    */
   private setRefreshTokenCookie(res: Response, token: string): void {
     const isDev = this.configService.get<string>('NODE_ENV') !== 'production';
@@ -113,22 +113,31 @@ export class AuthController {
       7;
     const maxAge = refreshTtlDays * 24 * 60 * 60 * 1000; // Convert days to milliseconds
 
-    // Dev mode: sameSite='none' and secure=true (required for cross-site cookies)
-    // Production: use env vars (default: sameSite='lax', secure=true)
-    const cookieSecure = isDev
-      ? true
-      : this.configService.get<string>('COOKIE_SECURE') !== 'false';
-    const cookieSameSite = isDev
-      ? ('none' as const)
-      : (this.configService.get<string>('COOKIE_SAMESITE') as
-          | 'strict'
-          | 'lax'
-          | 'none') || 'lax';
+    // Check if frontend and backend are on different domains (cross-site)
+    const frontendOrigin = this.configService.get<string>('FRONTEND_ORIGIN');
+    const isCrossSite =
+      frontendOrigin &&
+      !frontendOrigin.includes('localhost') &&
+      !frontendOrigin.includes('127.0.0.1');
+
+    // Dev mode OR cross-site production: sameSite='none' and secure=true
+    // Same-site production: use env vars (default: sameSite='lax', secure=true)
+    const cookieSecure =
+      isDev || isCrossSite
+        ? true
+        : this.configService.get<string>('COOKIE_SECURE') !== 'false';
+    const cookieSameSite =
+      isDev || isCrossSite
+        ? ('none' as const)
+        : (this.configService.get<string>('COOKIE_SAMESITE') as
+            | 'strict'
+            | 'lax'
+            | 'none') || 'lax';
 
     res.cookie('refresh_token', token, {
       httpOnly: true, // JavaScript cannot access
-      secure: cookieSecure, // Required for sameSite='none' in dev, or use env in prod
-      sameSite: cookieSameSite, // 'none' in dev for cross-site, 'lax' in prod by default
+      secure: cookieSecure, // Required for sameSite='none' (cross-site)
+      sameSite: cookieSameSite, // 'none' for cross-site, 'lax' for same-site
       path: '/', // Available for all paths (but only used by /auth/refresh)
       maxAge,
     });
@@ -141,17 +150,26 @@ export class AuthController {
   private clearRefreshTokenCookie(res: Response): void {
     const isDev = this.configService.get<string>('NODE_ENV') !== 'production';
 
-    // Dev mode: sameSite='none' and secure=true (required for cross-site cookies)
-    // Production: use env vars (default: sameSite='lax', secure=true)
-    const cookieSecure = isDev
-      ? true
-      : this.configService.get<string>('COOKIE_SECURE') !== 'false';
-    const cookieSameSite = isDev
-      ? ('none' as const)
-      : (this.configService.get<string>('COOKIE_SAMESITE') as
-          | 'strict'
-          | 'lax'
-          | 'none') || 'lax';
+    // Check if frontend and backend are on different domains (cross-site)
+    const frontendOrigin = this.configService.get<string>('FRONTEND_ORIGIN');
+    const isCrossSite =
+      frontendOrigin &&
+      !frontendOrigin.includes('localhost') &&
+      !frontendOrigin.includes('127.0.0.1');
+
+    // Dev mode OR cross-site production: sameSite='none' and secure=true
+    // Same-site production: use env vars (default: sameSite='lax', secure=true)
+    const cookieSecure =
+      isDev || isCrossSite
+        ? true
+        : this.configService.get<string>('COOKIE_SECURE') !== 'false';
+    const cookieSameSite =
+      isDev || isCrossSite
+        ? ('none' as const)
+        : (this.configService.get<string>('COOKIE_SAMESITE') as
+            | 'strict'
+            | 'lax'
+            | 'none') || 'lax';
 
     res.clearCookie('refresh_token', {
       path: '/', // Must match the path used when setting cookie
@@ -275,6 +293,14 @@ export class AuthController {
     const refreshToken = req.cookies?.refresh_token;
 
     if (!refreshToken) {
+      // Debug logging for cookie issues
+      console.warn('Refresh token not found in cookies', {
+        cookiesReceived: req.cookies,
+        hasCookies: !!req.cookies,
+        requestOrigin: req.headers.origin,
+        requestReferer: req.headers.referer,
+        cookieHeader: req.headers.cookie,
+      });
       throw new UnauthorizedException('Refresh token not found');
     }
 
@@ -303,10 +329,11 @@ export class AuthController {
 
     // Return accessToken and user info for session restoration
     const { accessToken, user } = result;
-    return {
+    const response: RefreshResponseDto = {
       accessToken,
-      user,
+      user: user as RefreshResponseDto['user'],
     };
+    return response;
   }
 
   @Public()
