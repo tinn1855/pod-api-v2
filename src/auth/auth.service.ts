@@ -204,12 +204,13 @@ export class AuthService {
   /**
    * Refresh access token using refresh token from cookie
    * Implements rotation and reuse detection
+   * Returns accessToken, new refreshToken, and user info for session restoration
    */
   async refreshAccessToken(
     refreshToken: string,
     userAgent?: string,
     ip?: string,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ): Promise<{ accessToken: string; refreshToken: string; user: UserInfoDto }> {
     // Parse token
     const parsed = parseRefreshToken(refreshToken);
     if (!parsed) {
@@ -218,10 +219,18 @@ export class AuthService {
 
     const { selector, validator } = parsed;
 
-    // Find session by selector
+    // Find session by selector with user relations
     const session = await this.prisma.refreshSession.findUnique({
       where: { selector },
-      include: { user: true },
+      include: {
+        user: {
+          include: {
+            org: true,
+            role: true,
+            team: true,
+          },
+        },
+      },
     });
 
     if (!session) {
@@ -323,10 +332,34 @@ export class AuthService {
       expiresIn: accessTokenExpiresIn as any,
     });
 
-    // Return accessToken and newRefreshToken (controller will set cookie)
+    // Prepare user info for session restoration
+    const userInfo: UserInfoDto = {
+      id: session.user.id,
+      name: session.user.name,
+      email: session.user.email,
+      status: session.user.status,
+      mustChangePassword: session.user.mustChangePassword,
+      org: {
+        id: session.user.org.id,
+        name: session.user.org.name,
+      },
+      role: {
+        id: session.user.role.id,
+        name: session.user.role.name,
+      },
+      team: session.user.team
+        ? {
+            id: session.user.team.id,
+            name: session.user.team.name,
+          }
+        : null,
+    };
+
+    // Return accessToken, newRefreshToken, and user info (controller will set cookie)
     return {
       accessToken,
       refreshToken: newRefreshToken,
+      user: userInfo,
     };
   }
 

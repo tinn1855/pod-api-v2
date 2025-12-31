@@ -15,7 +15,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request as ExpressRequest, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -24,8 +24,8 @@ import { LoginResponseDto } from './dto/login-response.dto';
 import { LoginRequirePasswordChangeDto } from './dto/login-require-password-change.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { RefreshResponseDto } from './dto/refresh-response.dto';
 import { Public } from '../common/decorators/public.decorator';
-import { AccessTokenGuard } from './guards/access-token.guard';
 import { ChangePasswordGuard } from './guards/change-password.guard';
 import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 
@@ -64,13 +64,20 @@ export class AuthController {
   })
   async login(
     @Body() loginDto: LoginDto,
-    @Request() req: any,
+    @Request() req: ExpressRequest,
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponseDto | LoginRequirePasswordChangeDto> {
-    const userAgent = req.headers?.['user-agent'];
+    const userAgent =
+      typeof req.headers['user-agent'] === 'string'
+        ? req.headers['user-agent']
+        : undefined;
     const ip =
-      req.headers?.['x-forwarded-for']?.toString() ||
-      (req.socket as any)?.remoteAddress ||
+      (typeof req.headers['x-forwarded-for'] === 'string'
+        ? req.headers['x-forwarded-for']
+        : Array.isArray(req.headers['x-forwarded-for'])
+          ? req.headers['x-forwarded-for'][0]
+          : undefined) ||
+      req.socket?.remoteAddress ||
       req.ip ||
       'unknown';
 
@@ -91,31 +98,37 @@ export class AuthController {
       return response;
     }
 
-    return result as LoginResponseDto;
+    return result;
   }
 
   /**
    * Set refresh token as HttpOnly cookie
+   * In dev mode (NODE_ENV !== 'production'): sameSite='none', secure=true (required for cross-site cookies)
+   * In production: uses COOKIE_SAMESITE and COOKIE_SECURE from env
    */
   private setRefreshTokenCookie(res: Response, token: string): void {
-    const cookieSecure =
-      this.configService.get<string>('COOKIE_SECURE') === 'true';
-    const cookieSameSite =
-      (this.configService.get<string>('COOKIE_SAMESITE') as
-        | 'strict'
-        | 'lax'
-        | 'none') || 'lax';
+    const isDev = this.configService.get<string>('NODE_ENV') !== 'production';
     const refreshTtlDays =
-      parseInt(
-        this.configService.get<string>('REFRESH_TTL_DAYS') || '7',
-        10,
-      ) || 7;
+      parseInt(this.configService.get<string>('REFRESH_TTL_DAYS') || '7', 10) ||
+      7;
     const maxAge = refreshTtlDays * 24 * 60 * 60 * 1000; // Convert days to milliseconds
+
+    // Dev mode: sameSite='none' and secure=true (required for cross-site cookies)
+    // Production: use env vars (default: sameSite='lax', secure=true)
+    const cookieSecure = isDev
+      ? true
+      : this.configService.get<string>('COOKIE_SECURE') !== 'false';
+    const cookieSameSite = isDev
+      ? ('none' as const)
+      : (this.configService.get<string>('COOKIE_SAMESITE') as
+          | 'strict'
+          | 'lax'
+          | 'none') || 'lax';
 
     res.cookie('refresh_token', token, {
       httpOnly: true, // JavaScript cannot access
-      secure: cookieSecure, // Only sent over HTTPS in production
-      sameSite: cookieSameSite, // CSRF protection
+      secure: cookieSecure, // Required for sameSite='none' in dev, or use env in prod
+      sameSite: cookieSameSite, // 'none' in dev for cross-site, 'lax' in prod by default
       path: '/', // Available for all paths (but only used by /auth/refresh)
       maxAge,
     });
@@ -123,15 +136,22 @@ export class AuthController {
 
   /**
    * Clear refresh token cookie
+   * Must use same secure/sameSite/path as setRefreshTokenCookie
    */
   private clearRefreshTokenCookie(res: Response): void {
-    const cookieSecure =
-      this.configService.get<string>('COOKIE_SECURE') === 'true';
-    const cookieSameSite =
-      (this.configService.get<string>('COOKIE_SAMESITE') as
-        | 'strict'
-        | 'lax'
-        | 'none') || 'lax';
+    const isDev = this.configService.get<string>('NODE_ENV') !== 'production';
+
+    // Dev mode: sameSite='none' and secure=true (required for cross-site cookies)
+    // Production: use env vars (default: sameSite='lax', secure=true)
+    const cookieSecure = isDev
+      ? true
+      : this.configService.get<string>('COOKIE_SECURE') !== 'false';
+    const cookieSameSite = isDev
+      ? ('none' as const)
+      : (this.configService.get<string>('COOKIE_SAMESITE') as
+          | 'strict'
+          | 'lax'
+          | 'none') || 'lax';
 
     res.clearCookie('refresh_token', {
       path: '/', // Must match the path used when setting cookie
@@ -236,17 +256,8 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description:
-      'Access token refreshed successfully. New refresh token is set in HttpOnly cookie.',
-    schema: {
-      type: 'object',
-      properties: {
-        accessToken: {
-          type: 'string',
-          example:
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        },
-      },
-    },
+      'Access token refreshed successfully. New refresh token is set in HttpOnly cookie. Returns accessToken and user info for session restoration.',
+    type: RefreshResponseDto,
   })
   @ApiResponse({
     status: 401,
@@ -258,19 +269,26 @@ export class AuthController {
     description: 'User not found',
   })
   async refresh(
-    @Request() req: any,
+    @Request() req: ExpressRequest & { cookies?: { refresh_token?: string } },
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ accessToken: string }> {
+  ): Promise<RefreshResponseDto> {
     const refreshToken = req.cookies?.refresh_token;
 
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token not found');
     }
 
-    const userAgent = req.headers?.['user-agent'];
+    const userAgent =
+      typeof req.headers['user-agent'] === 'string'
+        ? req.headers['user-agent']
+        : undefined;
     const ip =
-      req.headers?.['x-forwarded-for']?.toString() ||
-      (req.socket as any)?.remoteAddress ||
+      (typeof req.headers['x-forwarded-for'] === 'string'
+        ? req.headers['x-forwarded-for']
+        : Array.isArray(req.headers['x-forwarded-for'])
+          ? req.headers['x-forwarded-for'][0]
+          : undefined) ||
+      req.socket?.remoteAddress ||
       req.ip ||
       'unknown';
 
@@ -283,8 +301,12 @@ export class AuthController {
     // Set new refresh token cookie
     this.setRefreshTokenCookie(res, result.refreshToken);
 
-    // Return only accessToken (refreshToken is in cookie)
-    return { accessToken: result.accessToken };
+    // Return accessToken and user info for session restoration
+    const { accessToken, user } = result;
+    return {
+      accessToken,
+      user,
+    };
   }
 
   @Public()
@@ -297,7 +319,8 @@ export class AuthController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Logout successful - refresh session revoked and cookie cleared',
+    description:
+      'Logout successful - refresh session revoked and cookie cleared',
     schema: {
       type: 'object',
       properties: {
@@ -309,7 +332,7 @@ export class AuthController {
     },
   })
   async logout(
-    @Request() req: any,
+    @Request() req: ExpressRequest & { cookies?: { refresh_token?: string } },
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ ok: boolean }> {
     const refreshToken = req.cookies?.refresh_token;

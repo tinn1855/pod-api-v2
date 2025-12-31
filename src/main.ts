@@ -34,10 +34,34 @@ async function bootstrap() {
     }),
   );
 
-  // Enable CORS with credentials
-  const frontendOrigin = configService.get<string>('FRONTEND_ORIGIN');
+  // Enable CORS with credentials and origin whitelist
+  const frontendOrigin =
+    configService.get<string>('FRONTEND_ORIGIN') || 'http://localhost:4200';
+  const allowedOrigins = [
+    frontendOrigin,
+    'http://127.0.0.1:4200', // Alternative localhost format
+  ];
+
   app.enableCors({
-    origin: frontendOrigin || true, // Allow all origins if not specified (dev)
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      // Allow requests with no origin (like mobile apps, Postman, or same-origin requests)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      // Check if origin is in whitelist
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      // Reject origin not in whitelist
+      callback(new Error('Not allowed by CORS'), false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
