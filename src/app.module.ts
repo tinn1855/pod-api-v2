@@ -10,17 +10,9 @@ import { TeamsModule } from './teams/teams.module';
 import { RolesModule } from './roles/roles.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { SharedServicesModule } from './common/services/shared-services.module';
-import { FilesModule } from './files/files.module';
-import { AttachmentsModule } from './files/attachments/attachments.module';
-import { BoardsModule } from './boards/boards.module';
-import { TasksModule } from './tasks/tasks.module';
-import { DesignFoldersModule } from './design-folders/design-folders.module';
-import { ContentsModule } from './contents/contents.module';
-import { CommentsModule } from './comments/comments.module';
 import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 import { PlatformsModule } from './platforms/platforms.module';
 import { ShopsModule } from './shops/shops.module';
-import { ConnectionsModule } from './connections/connections.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -35,17 +27,9 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     TeamsModule,
     RolesModule,
     PermissionsModule,
-    FilesModule,
-    AttachmentsModule,
-    BoardsModule,
-    TasksModule,
-    DesignFoldersModule,
-    ContentsModule,
-    CommentsModule,
     ActivityLogsModule,
     PlatformsModule,
     ShopsModule,
-    ConnectionsModule,
   ],
   controllers: [AppController],
   providers: [

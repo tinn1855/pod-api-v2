@@ -66,11 +66,6 @@ export class ShopsService {
         name: createShopDto.name,
         isActive: true,
       },
-      include: {
-        connections: {
-          where: { isActive: true },
-        },
-      },
     });
 
     // Log activity
@@ -114,24 +109,6 @@ export class ShopsService {
     const [shops, total] = await Promise.all([
       this.prisma.shop.findMany({
         where,
-        include: {
-          connections: {
-            where: { isActive: true },
-            select: {
-              id: true,
-              platform: true,
-              status: true,
-              displayName: true,
-              isActive: true,
-              region: true,
-              currency: true,
-              lastSyncAt: true,
-              lastError: true,
-              createdAt: true,
-              updatedAt: true,
-            },
-          },
-        },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -157,13 +134,6 @@ export class ShopsService {
 
     const shop = await this.prisma.shop.findUnique({
       where: { id: shopId },
-      include: {
-        connections: {
-          include: {
-            credential: false, // Never include credentials
-          },
-        },
-      },
     });
 
     if (!shop) {
@@ -187,11 +157,6 @@ export class ShopsService {
     const shop = await this.prisma.shop.update({
       where: { id: shopId },
       data: updateShopDto,
-      include: {
-        connections: {
-          where: { isActive: true },
-        },
-      },
     });
 
     // Log activity
@@ -247,20 +212,6 @@ export class ShopsService {
       isActive: shop.isActive,
       createdAt: shop.createdAt,
       updatedAt: shop.updatedAt,
-      connections: shop.connections?.map((conn: any) => ({
-        id: conn.id,
-        shopId: conn.shopId,
-        platform: conn.platform,
-        status: conn.status,
-        displayName: conn.displayName,
-        isActive: conn.isActive,
-        region: conn.region,
-        currency: conn.currency,
-        lastSyncAt: conn.lastSyncAt,
-        lastError: conn.lastError,
-        createdAt: conn.createdAt,
-        updatedAt: conn.updatedAt,
-      })),
     };
   }
 }

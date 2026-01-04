@@ -1,5 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ShopConnectionResponseDto } from '../../connections/dto/connection-response.dto';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class ShopResponseDto {
   @ApiProperty({ description: 'Shop ID', example: 'shop-uuid' })
@@ -28,13 +27,6 @@ export class ShopResponseDto {
     example: '2024-01-01T00:00:00.000Z',
   })
   updatedAt: Date;
-
-  @ApiProperty({
-    description: 'Shop connections',
-    type: [ShopConnectionResponseDto],
-    required: false,
-  })
-  connections?: ShopConnectionResponseDto[];
 }
 
 export class ShopListResponseDto {
