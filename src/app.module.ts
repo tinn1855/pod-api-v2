@@ -13,6 +13,7 @@ import { SharedServicesModule } from './common/services/shared-services.module';
 import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 import { PlatformsModule } from './platforms/platforms.module';
 import { ShopsModule } from './shops/shops.module';
+import { ContentsModule } from './contents/contents.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -30,6 +31,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     ActivityLogsModule,
     PlatformsModule,
     ShopsModule,
+    ContentsModule,
   ],
   controllers: [AppController],
   providers: [
